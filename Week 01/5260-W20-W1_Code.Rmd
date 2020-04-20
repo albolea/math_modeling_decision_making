@@ -1,0 +1,260 @@
+---
+title: "Week 1: Constrained Optimization and Linear Programming"
+author: "Gareth Green"
+output: slidy_presentation
+---
+
+# Code basics
+
++ Recall, all code should have the following:  
+
+  - Header with title, purpose, date and author  
+  - Code documentation indicating each step  
+  - Project tables and graphs should be professonial  
+    - Exploritory tables and graphs can be rough  
+
+```{r}
+# Course: 5260 Math models for decision making
+# Title: Week 1 - Constrained Optimization and Linear Programming
+# Purpose: Basic demonstration of lpSolve and lpSolveAPI
+# Date: March 1, 2020
+# Author: Gareth Green
+
+```
+
+
+# Clear environment and load libraries
+
+```{r}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+
+
+```{r}
+# Load lpSolve package to demonstrate simple LP
+library(lpSolve)
+
+```
+
+
+# Set up boots and shoes problem
+
++ B and S are decision variables  
+
++ Set objective function and constraints  
+
+**Maximize over B and S**  
+  40B + 25S  
+
+**Subject to**  
+  30B + 20S <= 1200  
+  10B + 10S <=  500  
+    B       <=   30  
+
+
+# Code for basic LP problem using lpSolve
+
+```{r}
+# Define parameters of the lp command in lpSolve
+
+# Name the objective function values
+obj <- c(40, 25)
+
+# Set up a matrix of constraints
+con <- matrix (c(30 , 20, 
+                 10, 10, 
+                 1, 0), 
+                 ncol = 2, byrow = TRUE)
+
+# Set equation inequalities for the constraints
+eq <- c("<=", "<=", "<=")
+
+# Set the resource constraint values
+rhs <- c(1200, 500, 30)
+
+# Solve model
+sol <- lp("max", obj, con, eq, rhs, compute.sens = TRUE)
+
+```
+
+
+# View the constraints, objective value and solution
+
+```{r}
+# View constraints
+sol$constraints
+
+```
+
+
+```{r}
+# lp output: Objective function value
+sol$objval
+
+```
+
+```{r}
+# lp output: Decision variables values
+sol$solution
+
+```
+
+# Can solve the same problem using minimization  
+
++ **A max can be solved as a min, and vise versa**  
+
++ Set objective values as negative  
+
++ Set call in lp() to "min"  
+
+  - All else is the same  
+    
+```{r}
+# Define parameters of the lp command in lpSolve
+obj <- c(-40, -25)
+
+# Solve model
+sol <- lp("min", obj, con, eq, rhs, compute.sens = TRUE)
+
+# Use the negative of the objective function value
+sol$objval
+sol$solution
+
+```
+
+
+# Demo **lpSolveAPI** package  
+
++ lpSolveAPI has more functionality  
+
+  - More to set up model  
+  - But easier to add additional constraints  
+  - Better sensitity analysis results  
+
+```{r warning = FALSE}
+# Load lpSolveAPI
+library(lpSolveAPI)
+
+# Define parameters of the lp
+
+# This indicates 3 constraints and 2 variables
+lpAPI <- make.lp(3, 2)
+
+# Using lp.control() to set maximization problem, also gives additional printout of settings
+lp.control(lpAPI, sense="max")
+
+```
+
+
+# Set up the model  
+
+After set make.lp() can set up the model  
+
+```{r}
+# Objective function
+set.objfn(lpAPI, c(40, 25))
+
+# Set up constraints
+set.row(lpAPI, 1, c(30, 20))
+set.row(lpAPI, 2, c(10, 10))
+set.row(lpAPI, 3, c(1, 0))
+
+# Set inequalities for the constraints
+set.constr.type(lpAPI, c("<=", "<=", "<="))
+
+# Set the resource constraint values
+set.rhs(lpAPI, c(1200, 500, 30))
+
+# See the model we have set up
+lpAPI
+
+```
+
+
+# Solve model
+
++ 0 Returned indicates model was successfully solved 
+
++ See ?solve.lpExtPtr for solve codes
+
+```{r}
+# Solve the model, solve() is a lpSolveAPI function
+solve(lpAPI)
+
+# Output: Objective function value
+get.objective(lpAPI)
+
+# Output: Decision variables and constraint values
+get.variables(lpAPI)
+get.constraints(lpAPI) 
+
+```
+
+# Can add aditional constraints
+
++ One benefit of lpSolveAPI is you can easily add constraints  
+
+  - This make constructing the model easier  
+
++ Use the same model, but add a constraint  
+
++ Add a ratio constraint  
+
+  - 3B <= S: S has to be more than 3 times B  
+  - Maybe a materials or shipping constraint  
+  - Mathematically this is 3B - S <= 0  
+  - Cannot have variable on the right hand side of constraint  
+
+```{r}
+# Add a new type of constraint 3B <= S
+add.constraint(lpAPI, c(3, -1), "<=", 0)
+
+```
+
++ **Do you expect profit to be more, less or same**  
+
+  - What does change in profit depend on?  
+
+# New model
+
++ Additional constraints will reduce profitability if they are binding
+
+  - If binding, the constraint has made the feasibility region smaller
+  - If not binding, no impact
+
+```{r}
+# Solve model
+solve(lpAPI)
+
+# Output: Objective function value
+get.objective(lpAPI)
+
+# Output: Decision variables values
+get.variables(lpAPI)
+get.constraints(lpAPI) 
+
+```
+
+
+# Wrap up
+
++ lpSolve and lpSolveAPI are farily straight forward packages for linear programing
+
+  - As problems grow the coding of constraints can become challenging
+  - Provide information on solution
+
++ R is not designed to be linear programing software
+
+  - Can also use Python, but not much better
+  - If actually doing large LP problems will likely be using LP specific software
+  - Can also use Excel for small problems
+  
++ R helps you learn the basic structure to understand constrained optimization
+
+  - Goal of this class is to educate you about constrained optimization
+    - important modeling framework used extensively modeling

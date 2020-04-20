@@ -1,0 +1,388 @@
+---
+title: "Week 2"
+subtitle: "Linear programming primal, dual, and sensitivity analysis"
+author: "Gareth Green"
+output: slidy_presentation
+---
+
+
+```{r echo = FALSE}
+# Course: 5260 Math models for decision making
+# Title: Week 2-Linear programming primal, dual, and sensitivity analysis
+# Purpose: Basic demonstration of primal and dual with lpSolveAPI
+# Date: March 17, 2018
+# Author: Gareth Green
+
+```
+
+```{r echo = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+
+
+Set up boots and shoes problem
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r message = FALSE, warning = FALSE}
+# Load packages
+library(lpSolveAPI)
+
+```
+
+```{r}
+# Define parameters of the lp
+  ## Note, this set up shows 0 constraints and 2 variables
+  ## will add constraints
+lp_primal <- make.lp(0, 2)
+
+# I will run the code below in a hidden chunk to avoid the output
+# lp.control(lp_primal, sense = "max") 
+
+```
+
+
+```{r echo = FALSE, include = FALSE}
+# Run as maximum
+lp.control(lp_primal, sense = "max")
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# Set up model
+set.objfn(lp_primal, c(40, 25))
+add.constraint(lp_primal, c(30, 20), "<=", 1200)
+add.constraint(lp_primal, c(10, 10),"<=", 500)
+add.constraint(lp_primal, c(1, 0), "<=", 30)
+
+# Add names to problem
+dimnames(lp_primal) <- list(c("Labor", "Machines", "B-demand"),
+                            c("Boots", "Shoes"))
+
+# See the model we have set up
+lp_primal
+
+```
+
+</div>
+
+
+Solve model and look at solution
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r}
+# Solve model
+solve(lp_primal)
+
+# Output, gives i) obj, ii) 3 constraint values and iii) 2 variable values
+get.primal.solution(lp_primal) 
+
+```
+
++ What do the results indicate  
+
+  - 0 indicates solves  
+  - 1575, objective function    
+  - 1200, amount of labor used      
+  - 450, amount of machine hours used  
+  - 30, amount of boots produced, related to boots demand constraint  
+  - 30, boots produced as a variable  
+  - 15, shoes produced as a variable  
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# For two dimmension problems can plot the problem
+plot(lp_primal)
+
+```
+
+</div>
+
+
+View dual solution
+=============================================
+
+```{r}
+# Dual solution
+get.dual.solution(lp_primal)
+
+```
+
++ What do the results indicate  
+
+  - 1.00 indicates the dual is feasible  
+  - 1.25, if increase L by 1 unit, profit increase by $1.25    
+  - 0.00, if increase M by 1 unit, profit increase by $0  
+  - 2.50, if increase D by 1 unit, profit increase by $2.50  
+  - 0.00 and 0.00 indicate no "slack" in the variables  
+    
++ **How can profit increase by $1.25 or $2.50 if boots are $40 and shoes $25?**  
+
+
+Set up the dual problem so can compare results
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Program the same problem from dual perspective  
+
+  - The dual has 3 variables  
+  - Dual has 2 constraints with inequalities reversed  
+
+```{r}
+# Define the model with 0 constraints, is a minimum so not need lp.control()
+lp_dual <- make.lp(0, 3)
+
+# Add the constraints 
+set.objfn(lp_dual, c(1200, 500, 30))
+add.constraint(lp_dual, c(30, 10, 1), ">=", 40)
+add.constraint(lp_dual, c(20, 10, 0),">=", 25)
+
+dimnames(lp_dual) <- list(c("Boots", "Shoes"),
+                            c("Labor", "Machines", "B-demand"))
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# See the model we have set up
+lp_dual
+
+```
+
+</div>
+
+
+Solve "the dual" model and look at solution
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ To be clear  
+
+  - This is a code of the dual to the original problem  
+  - The dual of this is the primal of the model we first set up  
+  - Mathematcially, it is arbitrary which is the primal and which is the dual  
+  - Conceptually, set the primal as the model that makes the most sense for the application  
+    
+```{r}
+# Solve model
+solve(lp_dual)
+
+# Output, gives i) obj, ii) 2 constraints values, and iii) 3 variable values
+get.primal.solution(lp_dual) 
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ What do the results indicate  
+
+  - 0 indicates solves  
+  - 1575, objective function    
+  - 45.00, profit of boots      
+  - 25.00, profit of shoes  
+  - 1.25, value of additional labor hours   
+  - 0, value of additional machine hours   
+  - 2.50, value of additional boot demand     
+
+</div>
+
+
+Solve "the dual" model and look at solution
+=============================================
+
+
+<div style="float: left; width: 50%;">
+
+```{r}
+# Output, gives i) obj, ii) 2 constraint values and iii) 3 variable values
+get.dual.solution(lp_dual)
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ What do the results indicate  
+
+  - 1.00 indicates the dual is feasible  
+  - 30, if net profit of B increase by 1 dollar, profit increase by $30    
+  - 15, if net profit of S increase by 1 dollar, profit increase by $15    
+  - 0, all of L is used    
+  - 50, M not used  
+  - 0, all of D is used   
+
+</div>
+
+
+Sensitivity analysis
+=============================================
+
++ Over what variable and constraint ranges will the solution hold?  
+
+```{r}
+# Get sensitivity analysis of primal
+get.sensitivity.obj(lp_primal)
+get.sensitivity.rhs(lp_primal)
+
+```
+
++ Hard to tell what output is so will make a table  
+
+Sensitivity analysis table
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r}
+# Build a table to make understanding the results easier
+obj_fn <- c(40, 25)
+ps <- get.primal.solution(lp_primal) 
+obj_sa <- get.sensitivity.obj(lp_primal)
+rhs_sa <- get.sensitivity.rhs(lp_primal)
+
+# Table dimmensions
+n <- length(get.variables(lp_primal))
+m <- length(get.constr.type(lp_primal))
+
+# Make output and table
+ov <- paste0("Objective function value = ", ps[1])
+sa_tab <- rbind(ps[2:(n + m + 1)], 
+                c(round(rhs_sa$duals[1:m], 2), obj_fn),
+                round(c(rhs_sa$dualsfrom[1:m],obj_sa$objfrom), 2),
+                round(c(rhs_sa$dualstill[1:m],obj_sa$objtill), 2)) 
+colnames(sa_tab) <- c(rownames(lp_primal), colnames(lp_primal))
+rownames(sa_tab) <- c("Solution", "Duals/Coef", "Sens From", "Sens Till")      
+
+# Substitute "inf" and "-inf" so tables are easier to read (coded by two classmates!)
+sa_tab <- ifelse(sa_tab == -1.000e+30, "-inf", sa_tab)
+sa_tab <- ifelse(sa_tab == 1.000e+30, "inf", sa_tab)
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# Objective value and sensitivity analysis table
+ov
+as.table(sa_tab)
+
+```
+
+</div>
+
+
+Sensitivity analysis
+=============================================
+
++ We can format the table to be easier to read
+
+```{r}
+# Beautify the table using knitr and kableExtra packages, and add %>% 
+`%>%` <- magrittr::`%>%`
+library(knitr)
+library(kableExtra)
+
+# Print the table
+kable(sa_tab, format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  add_footnote(label = ov, notation = "none")
+
+```
+
++ What if we add 1 more unit of Boot demand as discussed earlier?
+
+
+Sensitivity analysis
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = FALSE, include = FALSE}
+# Set up model but eliminate verbose output
+lp_primal_1 <- make.lp(0, 2)
+lp.control(lp_primal_1, sense = "max")
+
+# Continue model set up
+set.objfn(lp_primal_1, c(40, 25))
+add.constraint(lp_primal_1, c(30, 20), "<=", 1200)
+add.constraint(lp_primal_1, c(10, 10),"<=", 500)
+add.constraint(lp_primal_1, c(1, 0), "<=", 31)
+
+# Add names to problem
+dimnames(lp_primal_1) <- list(c("Labor", "Machines", "B-demand"), c("Boots", "Shoes"))
+
+# Solve model
+solve(lp_primal_1)
+
+# Build a table to make understanding the results easier
+obj_fn <- c(40, 25)
+ps <- get.primal.solution(lp_primal_1) 
+obj_sa <- get.sensitivity.obj(lp_primal_1)
+rhs_sa <- get.sensitivity.rhs(lp_primal_1)
+
+# Table dimmensions
+n <- length(get.variables(lp_primal_1))
+m <- length(get.constr.type(lp_primal_1))
+
+# Make output and table
+ov <- paste0("Objective function value = ", ps[1])
+sa_tab <- rbind(ps[2:(n + m + 1)], 
+                c(round(rhs_sa$duals[1:m], 2), obj_fn),
+                round(c(rhs_sa$dualsfrom[1:m],obj_sa$objfrom), 2),
+                round(c(rhs_sa$dualstill[1:m],obj_sa$objtill), 2)) 
+colnames(sa_tab) <- c(rownames(lp_primal_1), colnames(lp_primal_1))
+rownames(sa_tab) <- c("Solution", "Duals/Coef", "Sens From", "Sens Till")      
+
+# Substitute "inf" and "-inf" so tables are easier to read (coded by two classmates!)
+sa_tab <- ifelse(sa_tab == -1.000e+30, "-inf", sa_tab)
+sa_tab <- ifelse(sa_tab == 1.000e+30, "inf", sa_tab)
+
+```
+
+
+```{r echo = FALSE}
+# Print the table
+kable(sa_tab, format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  add_footnote(label = ov, notation = "none")
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# For two dimmension problems can plot the problem
+plot(lp_primal_1)
+
+```
+
+</div>
+
+

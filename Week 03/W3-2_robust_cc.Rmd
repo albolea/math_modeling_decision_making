@@ -1,0 +1,574 @@
+---
+title: "Week 3: Optimization under uncertainty"
+subtitle: "Robust optimization and chance constraints"
+author: "Gareth Green"
+output: slidy_presentation
+---
+
+```{r echo = FALSE}
+# Course: 5260 Math models for decision making
+# Title: Week 3-Robust Optimization
+# Purpose: Basic demonstration of Robust Optimization with lpSolveAPI
+# Date: March 15, 2020
+# Author: Gareth Green
+
+```
+
+```{r echo = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+
+
+Load packages
+=============================================
+
+```{r results = "hide"}
+# Load packages
+library(lpSolveAPI)
+`%>%` <- magrittr::`%>%`
+library(knitr)
+library(kableExtra)
+
+```
+
+
+Homework #1, problem #4: Farming maximization  
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Maximize: 
+
+    profit = 5G + 25V  
+
++ Subject to:  
+
+    Materials 5G + 40V <= 1245  
+    Water 4G +  8V <=  300  
+
+```{r}
+# Define parameters of the lp
+h1p4 <- make.lp(0, 2)
+
+```
+
+
+```{r echo = FALSE, include = FALSE}
+# I will run this in a hidden chunk to avoid the output
+lp.control(h1p4, sense = "max")
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+
+```{r}
+# Set up model
+obj_fn <- c(5, 25)
+set.objfn(h1p4, obj_fn)
+add.constraint(h1p4, c(5, 40), "<=", 1245)
+add.constraint(h1p4, c(4, 8), "<=", 300)
+
+# Add row and column names
+dimnames(h1p4) <- list(c("Input Mix", "Water"), 
+                     c("Grains", "Veggies"))
+
+# See the model we have set up
+h1p4
+
+```
+
+```{r echo = FALSE, include = FALSE}
+# Solve model
+solve(h1p4)
+
+# Make solution andsensitivity analysis table
+# Primal values
+ps <- get.primal.solution(h1p4) 
+
+# Sensitivity analysis
+obj_sa <- get.sensitivity.obj(h1p4)
+rhs_sa <- get.sensitivity.rhs(h1p4)
+
+n <- length(get.variables(h1p4))
+m <- length(get.constr.type(h1p4))
+ov <- paste0("Objective Value = ", ps[1])
+
+sa_tab <- rbind(ps[2:(n + m + 1)], 
+                c(round(rhs_sa$duals[1:m], 2), obj_fn),
+                round(c(rhs_sa$dualsfrom[1:m],obj_sa$objfrom), 2),
+                round(c(rhs_sa$dualstill[1:m],obj_sa$objtill), 2)) 
+colnames(sa_tab) <- c(rownames(h1p4), colnames(h1p4))
+rownames(sa_tab) <- c("Solution", "duals/coef", "Sens From", "Sens Till")  
+
+# Substitute "inf" and "-inf" so tables are easier to read (coded by two classmates!)
+sa_tab <- ifelse(sa_tab == -1.000e+30, "-inf", sa_tab)
+sa_tab <- ifelse(sa_tab == 1.000e+30, "inf", sa_tab)
+
+```
+
+
+</div>
+
+Recall the graphical representation
+=============================================
+
+```{r echo = FALSE}
+# Plot feasible space
+plot(h1p4)
+
+```
+
+
+Objective value and sensitivity analysis table
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = FALSE}
+# Print the table
+kable(sa_tab, format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  add_footnote(label = ov, notation = "none")
+
+```
+
+
+**What changes in the right hand side constraints (_b_'s) would change the solution**  
+
++ Duals indicate both the input mix and water constraints are binding  
+  - Increasing water will increase profit by $0.62 per unit from 249 to 996 units
+  - Increasing input mix will increase profit by $0.50 per unit from 375 to 1500 units
+  - Increasing either resource will increase profits  
+    - But not sure how crops (variables) will change  
+
+</div>
+
+<div style="float: right; width: 50%;">
+            
+**What changes in the objective function parameters (_c_'s) would change the solution**  
+
++ Will have same cropping pattern (variables) if profit per acre (c's) are **within** given ranges  
+  - But profit will change  
+  - For example, if increase profit of veggies from $25 to $39.99
+    - Profit = $1244.97, G = 17 and V = 29
+
+**What changes in the constraint parameters (_a_'s) would change the solution**  
+
++ This type of sensitivity analysis is not given by the output  
+  - Ratio of $c$'s is 25/5 = 5  
+  - Ratio of $a_i$ is 40/5 = 8, so $a_{Vi}$ decrease or $a_{Gi}$ increase so ratio < 5  
+  - Ratio of $a_w$ is 8/4 = 2, so $a_{VW}$ increase or $a_{GW}$ decrease so ratio > 5   
+
+**Let's try it to see**    
+
+</div>
+
+
+Robust Optimization-INDEPENDENT parameters  
+=============================================
+
+<div style="float: left; width: 55%;">
+
+**Drought parameters** 
+
++ lower bound of c's: $c_G = 3$ and $c_V = 20$      
++ lower bound of water: $b_W = 200$  
++ upper bound of a's: $a_{GW} = 5$ and $a_{VW} = 10$  
+
++ maximize: 
+
+    profit = 3G + 20V  
+
++ subject to:  
+
+    Materials 5G + 40V <= 1245  
+    Water 5G + 10V <= 200  
+
+</div>
+
+<div style="float: right; width: 45%;">
+
+**Write down how you think the solution will change?**  
+
++ Objective value +/-  
++ Duals +/- 
++ Variables (acreage) +/-  
+
+```{r}
+# Define parameters of the lp
+h1p4_ro_i <- make.lp(0, 2)
+
+```
+
+</div>
+
+```{r echo = FALSE, include = FALSE}
+# I will run this in a hidden chunk to avoid the output
+lp.control(h1p4_ro_i, sense = "max")
+
+```
+
+
+```{r echo = TRUE, include = FALSE}
+# Set up model
+obj_fn_ro_i <- c(3, 20)
+set.objfn(h1p4_ro_i, obj_fn_ro_i)
+add.constraint(h1p4_ro_i, c(5, 40), "<=", 1245)
+add.constraint(h1p4_ro_i, c(5, 10),"<=", 200)
+
+# Add row and column names
+dimnames(h1p4_ro_i) <- list(c("Input Mix", "Water"), 
+                     c("Grains", "Veggies"))
+
+# See the model we have set up
+h1p4_ro_i
+
+# Solve model
+solve(h1p4_ro_i)
+
+# Make solution andsensitivity analysis table
+# Primal values
+ps_ro_i <- get.primal.solution(h1p4_ro_i) 
+
+# Sensitivity analysis
+obj_sa_ro_i <- get.sensitivity.obj(h1p4_ro_i)
+rhs_sa_ro_i <- get.sensitivity.rhs(h1p4_ro_i)
+
+ov_ro_i <- paste0("Objective Value = ", ps_ro_i[1])
+
+sa_tab_ro_i <- rbind(ps_ro_i[2:(n + m + 1)], 
+             c(rhs_sa_ro_i$duals[1:m],obj_fn_ro_i),
+             round(c(rhs_sa_ro_i$dualsfrom[1:m],obj_sa_ro_i$objfrom), 2),
+             round(c(rhs_sa_ro_i$dualstill[1:m],obj_sa_ro_i$objtill), 2)) 
+colnames(sa_tab_ro_i) <- c(rownames(h1p4_ro_i), colnames(h1p4_ro_i))
+rownames(sa_tab_ro_i) <- c("Solution", "duals/coef", "Sens From", "Sens Till")
+
+# Substitute "inf" and "-inf" so tables are easier to read (coded by two classmates!)
+sa_tab_ro_i <- ifelse(sa_tab_ro_i == -1.000e+30, "-inf", sa_tab_ro_i)
+sa_tab_ro_i <- ifelse(sa_tab_ro_i == 1.000e+30, "inf", sa_tab_ro_i)
+
+
+```
+
+
+Objective value and sensitivity analysis table
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = FALSE}
+# Print the table
+kable(sa_tab_ro_i, format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  add_footnote(label = ov_ro_i, notation = "none")
+
+```
+
+**How do results compare to your guess?**  
+
++ Objective function decrease  
++ Only water binding and the water dual increased  
++ Stop grains, reduce veggie
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Plot feasible space
+plot(h1p4_ro_i)
+
+```
+
+</div>
+
+
+Did robust optimization rules make sense?  
+=============================================
+
+Note: we applied the Robust Optimization rule WITHOUT considering the application  
+
++ **Does it make sense?**  
+
+  - How would water use change during drought?  
+    - Might be hotter so need more water, so yes that make sense  
+  - How would c's and profit change?  
+    - Grains price stay same due to world market, so not good assumption  
+    - Veggie profit +/-? 
+      - If mkt supply down, price increase, profit increase  
+      - If water more due to heat could be more expensive, profit decrease
+        - hard to say how profit per acre react
+        - leave at usual price
+
++ So water use realistic, but profit parameters need to be studied
+
+
+Robust Optimization-DEPENDENT parameters  
+=============================================
+
+<div style="float: left; width: 50%;">
+
+**Drought parameters**  
+
++ Assume grains profit the same but veggies profit increase due to reduced supply  
+  - Putting in fixed values derived from functional relationship
+
++ fixed functional value of c's: $c_G = 5$ and $c_V = 25$      
++ lower bound of water: $b_W = 200$  
++ upper bound of a's: $a_{GW} = 5$ and $a_{VW} = 10$  
+
++ refine c's: $c_G = 5$ and $c_V = 25$    
+  - Base value of c for grain since world market  
+  - Higher profit for veggie since lower production  
+    - However, this is not conservative approach  
++ lower bound of water: $b_W = 200$  
++ upper bound of a's: $a_{GW} = 5$ and $a_{VW} = 10$     
+  - since use more water if hotter in drought  
+
+**Why is this robust optimization with dependent parameters?**  
+
++ Have changed parameters based on case rather than just follow rules  
++ Have simplified to use linear programming  
+  - Not have a's or c's as function of water or temperature  
+    
+</div>
+
+<div style="float: right; width: 50%;">
+    
++ maximize: 
+
+    profit = 5G + 25V  
+
++ subject to:  
+
+    Materials 5G + 40V <= 1245  
+    Water 5G +  10V <=  200  
+
+**Write down how you think the solution will change?**  
+
++ Objective value +/-  
++ Duals +/- 
++ Variables (acreage) +/-  
+
+```{r}
+# Define parameters of the lp
+h1p4_ro_d <- make.lp(0, 2)
+
+```
+
+</div>
+
+```{r echo = FALSE, include = FALSE}
+# I will run this in a hidden chunk to avoid the output
+lp.control(h1p4_ro_d, sense = "max")
+
+```
+
+
+```{r echo = TRUE, include = FALSE}
+# Set up model
+obj_fn_ro_d <- c(5, 25)
+set.objfn(h1p4_ro_d, obj_fn_ro_d)
+add.constraint(h1p4_ro_d, c(5, 40), "<=", 1245)
+add.constraint(h1p4_ro_d, c(5, 10),"<=", 200)
+
+# Add row and column names
+dimnames(h1p4_ro_d) <- list(c("Input Mix", "Water"), 
+                        c("Grains", "Veggies"))
+
+# See the model we have set up
+h1p4_ro_d
+
+# Solve model
+solve(h1p4_ro_d)
+
+# Make solution andsensitivity analysis table
+# Primal values
+ps_ro_d <- get.primal.solution(h1p4_ro_d) 
+
+# Sensitivity analysis
+obj_sa_ro_d <- get.sensitivity.obj(h1p4_ro_d)
+rhs_sa_ro_d <- get.sensitivity.rhs(h1p4_ro_d)
+
+ov_ro_d <- paste0("Objective Value = ", ps_ro_d[1])
+
+sa_tab_ro_d <- rbind(ps_ro_d[2:(n + m + 1)], 
+             c(rhs_sa_ro_d$duals[1:m],obj_fn_ro_d),
+             round(c(rhs_sa_ro_d$dualsfrom[1:m],obj_sa_ro_i$objfrom), 2),
+             round(c(rhs_sa_ro_d$dualstill[1:m],obj_sa_ro_i$objtill), 2)) 
+colnames(sa_tab_ro_d) <- c(rownames(h1p4_ro_d), colnames(h1p4_ro_d))
+rownames(sa_tab_ro_d) <- c("Solution", "duals/coef", "Sens From", "Sens Till")      
+
+# Substitute "inf" and "-inf" so tables are easier to read (coded by two classmates!)
+sa_tab_ro_d <- ifelse(sa_tab_ro_d == -1.000e+30, "-inf", sa_tab_ro_d)
+sa_tab_ro_d <- ifelse(sa_tab_ro_d == 1.000e+30, "inf", sa_tab_ro_d)
+
+```
+
+Objective value and sensitivity analysis table
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = FALSE}
+# Print the table
+kable(sa_tab_ro_d, format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  add_footnote(label = ov_ro_d, notation = "none")
+
+```
+
+
+**How do results compare to your guess?**  
+
++ Objective function decrease, but not by as much as before (was $400)  
++ Only water binding and the water dual increased  
++ Stop grains, reduce veggie
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Plot feasible space
+plot(h1p4_ro_d)
+
+```
+
+</div>
+
+
+Chance Constraint 
+=============================================
+
+<div style="float: left; width: 50%;">
+
+**Drought parameters**  
+
++ use refined c's: $c_{GW} = 5$ and $c_{VW} = 25$    
+  - Base profit of c for grain and for veggie (since not know how change)
++ upper bound of a's: $a_{GW} = 5$, $a_{VW} = 10$     
+  - since use more water  
+
+Suppose distribution of water is $\mu = 300$ and $\sigma = 50$  
+
+  + Lower bound of water: $b_{water}\le\mu-K_{\alpha}*\sigma=300-K_{\alpha}*50$  
+  + Use 90% confidence so $\alpha = 0.1$
+  + But is a two-tail so only get 0.05 in lower tail
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ maximize: 
+
+    profit = 5G + 25V  
+
++ subject to:  
+
+    Materials 5G + 40V <= 1245  
+    Water 5G +  10V <=  300 - $K_{\alpha}$ * 50  
+
+**Write down how you think the solution will change?**  
+
++ Objective value +/-  
++ Duals +/- 
++ Variables (acreage) +/-  
+
+```{r}
+# Define parameters of the lp
+h1p4_cc <- make.lp(0, 2)
+
+```
+
+</div>
+
+```{r echo = FALSE, include = FALSE}
+# I will run this in a hidden chunk to avoid the output
+lp.control(h1p4_cc, sense = "max")
+
+```
+
+
+```{r echo = TRUE, include = FALSE}
+# Set up model with chance constraints on veggie profit and water use
+obj_fn_cc <- c(5, 25) # qnorm gives value from normal dist
+set.objfn(h1p4_cc, obj_fn_cc)
+add.constraint(h1p4_cc, c(5, 40), "<=", 1245) # input mix unchanged in drought
+add.constraint(h1p4_cc, c(5, 10), "<=", qnorm(0.05, mean = 300, sd = 50))
+
+# Add row and column names
+dimnames(h1p4_cc) <- list(c("Input Mix", "Water"), 
+                     c("Grains", "Veggies"))
+
+# See the model we have set up
+h1p4_cc
+
+# Solve model
+solve(h1p4_cc)
+
+# Make solution andsensitivity analysis table
+# Primal values
+ps_cc <- get.primal.solution(h1p4_cc) 
+
+# Sensitivity analysis
+obj_sa_cc <- get.sensitivity.obj(h1p4_cc)
+rhs_sa_cc <- get.sensitivity.rhs(h1p4_cc)
+
+ov_cc <- paste0("Objective Value = ", ps_cc[1])
+
+sa_tab_cc <- rbind(round(ps_cc[2:(n + m + 1)], 2), 
+             round(c(rhs_sa_cc$duals[1:m],obj_fn_cc), 2),
+             round(c(rhs_sa_cc$dualsfrom[1:m],obj_sa_cc$objfrom), 2),
+             round(c(rhs_sa_cc$dualstill[1:m],obj_sa_cc$objtill), 2)) 
+colnames(sa_tab_cc) <- c(rownames(h1p4_cc), colnames(h1p4_cc))
+rownames(sa_tab_cc) <- c("Solution", "duals/coef", "Sens From", "Sens Till")      
+
+# Substitute "inf" and "-inf" so tables are easier to read (coded by two classmates!)
+sa_tab_cc <- ifelse(sa_tab_cc == -1.000e+30, "-inf", sa_tab_cc)
+sa_tab_cc <- ifelse(sa_tab_cc == 1.000e+30, "inf", sa_tab_cc)
+
+```
+
+Objective value and sensitivity analysis table
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = FALSE}
+# Print the table
+kable(sa_tab_cc, format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  add_footnote(label = ov_cc, notation = "none")
+
+```
+
+
+**How do results compare to your guess?**  
+
++ Objective function decrease  
+  - But not by as much since since lower bound 218 > 200  
++ Only water binding and the water dual increased  
++ Stop grains, reduce veggie
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Plot feasible space
+plot(h1p4_cc)
+
+```
+
+</div>
+
+
