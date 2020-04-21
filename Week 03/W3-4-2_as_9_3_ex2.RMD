@@ -1,0 +1,227 @@
+---
+title: "Week 3"
+subtitle: "Transportation or Assignment problem with dummy destination reading in data from csv and looping"
+author: "Gareth Green"
+output: slidy_presentation
+---
+
+```{r echo = FALSE}
+# Title: Week 3-Transportation or Assignment Problem with dummy destination
+# Purpose: Demonstrate lpSolveAPI on pg353 Prototype reading in data from csv
+# Date: March 15, 2020
+# Author: Gareth Green
+
+```
+
+```{r echo = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+
+```{r echo = FALSE}
+# Load packages
+library(lpSolveAPI)
+`%>%` <- magrittr::`%>%`
+library(knitr)
+library(kableExtra)
+
+```
+
+
+Backgound: Transportation or Assignment problem, pg 353
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Transporation and Assignment problems need to maintain balance of inputs and outputs  
+
+  - For transportation problems need to balance quantity (supply and demand)
+  - For assignment problem need to balance tasks and assignees
+  - If the probelm is not balanced need to set up dummy to maintain balance
+    - excess supply (source or assignee) need dummy demand (destination or task), like in this problem
+    - excess demand (destination or task) need dummy supply (source or assignee)
+
++ We will solve the probelm two ways, as Transportation and Assignment
+
+</div>
+<div style="float: right; width: 50%;">
+
++ Assigning production of products to different plants based on cost and capacity
+
+  - Read through problem for details
+  
++ Option 1: Treat like Transportation problem
+
+  - **production splitting**, a plant can produce more than one product
+
++ Option 2: Treat like Assigment problem
+
+  - **No production splitting**, a plant can only produce all  of one or two products
+
++ Again, read 353 - 6 for details
+
+</div>
+
+
+Option 1: Set up the model from csv file and loops
+=============================================
+
+```{r}
+# Read in data file of costs and rhs
+mat <- read.csv("W3-4-2_as_9_3_ex2_opt1.csv", header = FALSE)
+
+# Seperate out objective function
+m <- nrow(mat) - 1
+n <- ncol(mat) - 1
+obj_fn <- unlist(as.data.frame(t(mat[1:m, 1:n])))
+
+# Make model
+as_9_3_ex2_opt1 <- make.lp(0, n * m)
+
+# Set up model
+set.objfn(as_9_3_ex2_opt1, obj_fn)
+
+# Set up row constraints
+for(i in 0:(m - 1)){ 
+  add.constraint(as_9_3_ex2_opt1, c(rep(0, i * n), rep(1, n), rep(0, (m-1-i) * n)), "=", mat[(i+1),(n+1)])
+  i <- i + 1
+}
+
+for(j in 0:(n-1) ){ 
+  add.constraint(as_9_3_ex2_opt1, (rep(c(rep(0,j),1,rep(0, n-1-j)),m)), "=", mat[(m+1),(j+1)])
+  j <- j + 1
+}
+
+# Does it have the right dimmensions?
+as_9_3_ex2_opt1
+
+# Write to view the algebraic formulation
+write.lp(as_9_3_ex2_opt1, "W3-4-2_as_9_3_ex2_opt1.lp",type = 'lp')
+
+```
+
+
+Option 1: Solve and get results Transportation set up
+=============================================
+
+```{r}
+# Solve the model, if this return 0 an optimal solution is found
+solve(as_9_3_ex2_opt1)
+
+```
+
+```{r echo = FALSE, include = FALSE}
+### Sensitivity Analysis
+ps <- get.primal.solution(as_9_3_ex2_opt1)
+obj_sa <- get.sensitivity.obj(as_9_3_ex2_opt1)
+rhs_sa <- get.sensitivity.rhs(as_9_3_ex2_opt1)
+
+nv <- length(get.variables(as_9_3_ex2_opt1))
+mc <- length(get.constr.type(as_9_3_ex2_opt1))
+ov <- paste0("Objective Value = ", ps[1])
+
+sa_tab <- rbind(ps[2:(nv + mc + 1)], 
+                round(c(rhs_sa$duals[1:mc], obj_fn), 2),
+                round(c(rhs_sa$dualsfrom[1:mc],obj_sa$objfrom), 2),
+                round(c(rhs_sa$dualstill[1:mc],obj_sa$objtill), 2)) 
+colnames(sa_tab) <- c(rownames(as_9_3_ex2_opt1), colnames(as_9_3_ex2_opt1))
+rownames(sa_tab) <- c("solution", "duals/coef", "Sens From", "Sens Till")      
+
+# Substitute "inf" and "-inf" so tables are easier to read (coded by two classmates!)
+sa_tab <- ifelse(sa_tab == -1.000e+30, "-inf", sa_tab)
+sa_tab <- ifelse(sa_tab == 1.000e+30, "inf", sa_tab)
+
+```
+
+```{r echo = FALSE}
+# Print the table
+kable(sa_tab, format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  add_footnote(label = ov, notation = "none")
+
+```
+
+
+Option 2: Set up the model from csv file and loops
+=============================================
+
+```{r}
+# Read in data file of costs and rhs
+mat <- read.csv("W3-4-2_as_9_3_ex2_opt2.csv", header = FALSE)
+
+# Seperate out objective function
+m <- nrow(mat) - 1
+n <- ncol(mat) - 1
+obj_fn <- unlist(as.data.frame(t(mat[1:m, 1:n])))
+
+# Make model
+as_9_3_ex2_opt2 <- make.lp(0, n * m)
+
+# Set up model
+set.objfn(as_9_3_ex2_opt2, obj_fn)
+
+# Set up row constraints
+for(i in 0:(m - 1)){ 
+  add.constraint(as_9_3_ex2_opt2, c(rep(0, i * n), rep(1, n), rep(0, (m-1-i) * n)), "=", mat[(i+1),(n+1)])
+  i <- i + 1
+}
+
+for(j in 0:(n-1) ){ 
+  add.constraint(as_9_3_ex2_opt2, (rep(c(rep(0,j),1,rep(0, n-1-j)),m)), "=", mat[(m+1),(j+1)])
+  j <- j + 1
+}
+
+# Does it have the right dimmensions?
+as_9_3_ex2_opt2
+
+# Write to view the algebraic formulation
+write.lp(as_9_3_ex2_opt2, "W3-4-2_as_9_3_ex2_opt2.lp",type = 'lp')
+
+```
+
+
+Solve and get results of Assignment set up, Option 2
+=============================================
+
+```{r}
+# Solve the model, if this return 0 an optimal solution is found
+solve(as_9_3_ex2_opt2)
+
+```
+
+```{r echo = FALSE, include = FALSE}
+### Sensitivity Analysis
+ps <- get.primal.solution(as_9_3_ex2_opt2)
+obj_sa <- get.sensitivity.obj(as_9_3_ex2_opt2)
+rhs_sa <- get.sensitivity.rhs(as_9_3_ex2_opt2)
+
+nv <- length(get.variables(as_9_3_ex2_opt2))
+mc <- length(get.constr.type(as_9_3_ex2_opt2))
+ov <- paste0("Objective Value = ", ps[1])
+
+sa_tab <- rbind(ps[2:(nv + mc + 1)], 
+                round(c(rhs_sa$duals[1:mc], obj_fn), 2),
+                round(c(rhs_sa$dualsfrom[1:mc],obj_sa$objfrom), 2),
+                round(c(rhs_sa$dualstill[1:mc],obj_sa$objtill), 2)) 
+colnames(sa_tab) <- c(rownames(as_9_3_ex2_opt2), colnames(as_9_3_ex2_opt2))
+rownames(sa_tab) <- c("solution", "duals/coef", "Sens From", "Sens Till")      
+
+# Substitute "inf" and "-inf" so tables are easier to read (coded by two classmates!)
+sa_tab <- ifelse(sa_tab == -1.000e+30, "-inf", sa_tab)
+sa_tab <- ifelse(sa_tab == 1.000e+30, "inf", sa_tab)
+
+```
+
+```{r echo = FALSE}
+# Print the table
+kable(sa_tab, format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  add_footnote(label = ov, notation = "none")
+
+```
+
+

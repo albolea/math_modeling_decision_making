@@ -1,0 +1,113 @@
+---
+title: "Week 3"
+subtitle: "Transportation problem with dummy supply reading in data from csv"
+author: "Gareth Green"
+output: slidy_presentation
+---
+
+```{r echo = FALSE}
+# Title: Week 3-Transportation Problem
+# Purpose: Demonstrate lpSolveAPI on pg330 dummy supply reading in data from csv and loop
+# Date: March 15, 2020
+# Author: Gareth Green
+
+```
+
+```{r echo = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+
+```{r echo = FALSE}
+# Load packages
+library(lpSolveAPI)
+`%>%` <- magrittr::`%>%`
+library(knitr)
+library(kableExtra)
+
+```
+  
+
+Set up the model from CSV file and loops
+=============================================
+
+```{r}
+# Read in data file of costs and rhs
+mat <- read.csv("W3-3-3_trans_9_1_ex3.csv", header = FALSE)
+
+# Seperate out objective function
+m <- nrow(mat) - 1
+n <- ncol(mat) - 1
+obj_fn <- unlist(as.data.frame(t(mat[1:m, 1:n])))
+
+# Make model
+trans_9_1_ds <- make.lp(0, n * m)
+
+# Set up objective fn
+set.objfn(trans_9_1_ds, obj_fn)
+
+# Set up row constraints
+for(i in 0:(m - 1)){ 
+  add.constraint(trans_9_1_ds, c(rep(0, i * n), rep(1, n), rep(0, (m-1-i) * n)), "=", mat[(i+1),(n+1)])
+  i <- i + 1
+}
+
+for(j in 0:(n-1) ){ 
+  add.constraint(trans_9_1_ds, (rep(c(rep(0,j),1,rep(0, n-1-j)),m)), "=", mat[(m+1),(j+1)])
+  j <- j + 1
+}
+
+# Does it have the right dimmensions?
+trans_9_1_ds
+
+# Write to view the algebraic formulation
+write.lp(trans_9_1_ds, "W3-3-3_trans_9_1_ex3.lp",type = 'lp')
+
+```
+
+
+Solve model and get results
+=============================================
+
+```{r}
+# Solve the model, if this return 0 an optimal solution is found
+solve(trans_9_1_ds)
+
+```
+
+```{r echo = FALSE, include = FALSE}
+### Sensitivity Analysis
+ps <- get.primal.solution(trans_9_1_ds)
+obj_sa <- get.sensitivity.obj(trans_9_1_ds)
+rhs_sa <- get.sensitivity.rhs(trans_9_1_ds)
+
+nv <- length(get.variables(trans_9_1_ds))
+mc <- length(get.constr.type(trans_9_1_ds))
+ov <- paste0("Objective Value = ", ps[1])
+
+sa_tab <- rbind(ps[2:(nv + mc + 1)], 
+                round(c(rhs_sa$duals[1:mc], obj_fn), 2),
+                round(c(rhs_sa$dualsfrom[1:mc],obj_sa$objfrom), 2),
+                round(c(rhs_sa$dualstill[1:mc],obj_sa$objtill), 2)) 
+colnames(sa_tab) <- c(rownames(trans_9_1_ds), colnames(trans_9_1_ds))
+rownames(sa_tab) <- c("solution", "duals/coef", "Sens From", "Sens Till")      
+
+# Substitute "inf" and "-inf" so tables are easier to read (coded by two classmates!)
+sa_tab <- ifelse(sa_tab == -1.000e+30, "-inf", sa_tab)
+sa_tab <- ifelse(sa_tab == 1.000e+30, "inf", sa_tab)
+
+```
+
+```{r echo = FALSE}
+# Print the table
+kable(sa_tab, format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  add_footnote(label = ov, notation = "none")
+
+```
+
+
