@@ -1,0 +1,889 @@
+---
+title: "Week 7"
+subtitle: "Nonlinear programming, Ch 13"
+author: "Gareth Green"
+output: slidy_presentation
+---
+
+```{r echo = FALSE}
+# Course: 5260 Math models for decision making
+# Title: Nonlinear programming, Ch 13
+# Purpose: Demonstarte nonlinear programing of text examples 
+# Date: March 15, 2020
+# Author: Gareth Green
+
+```
+
+```{r echo = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+
+
+```{r echo = FALSE}
+# Load packages
+library(nloptr)
+library(ggplot2)
+library(patchwork)
+
+```
+
+
+Nonlinear programming basics - concave vs convex
+=============================================
+
+<div style="float: left; width: 49%;">
+
++ Concave and convex functions (of one variable) 
+
+  - Concave $126x_1 - 9x_1^2$
+  - Convex $300 - 126x_1 + 9x_1^2$
+
++ Take the first and second derivative of each  
+
+    - Do they fit the assumptions?   
+
+</div>
+
+<div style="float: right; width: 51%;">
+
+</div>
+
+
+Nonlinear programming basics - concave vs convex
+=============================================
+
+<div style="float: left; width: 49%;">
+
++ Concave and convex functions (of one variable) 
+
+  - Concave $126x_1 - 9x_1^2$
+  - Convex $300 - 126x_1 + 9x_1^2$
+
++ Take the first and second derivative of each  
+
+    - Do they fit the assumptions?   
+
+```{r}
+# Concave function
+cave <- ggplot(data = data.frame(x = 0), mapping = aes(x = x)) + 
+  stat_function(fun = (function (x) 126*x - 9*x^2)) + 
+  xlim(0, 15) +
+  labs(title = "Concave") +
+  theme_classic()
+
+# Convex function
+vex <- ggplot(data = data.frame(x = 0), mapping = aes(x = x)) + 
+  stat_function(fun = (function (x) 300 - 126*x + 9*x^2)) + 
+  xlim(0, 15) +
+  labs(title = "Convex") +
+  theme_classic()
+
+```
+
+```{r echo = FALSE}
+# Assign to object
+cav_vex <- cave + vex
+
+# Save for use in other PowerPoint
+ggsave("cav_vex.png", height = 3, width = 2)
+
+```
+
+</div>
+
+<div style="float: right; width: 51%;">
+
+```{r echo = FALSE}
+# Print graphs
+cav_vex
+
+```
+
+</div>
+
+
+Nonlinear programming basics - two variables
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Concave function of two variables
+
+  - $126x_1 - 9x_1^2 + 180x_2 - 12x_2^2$
+  - does this function meet concavity assumptions?
+    - take the first and second derivative
+
++ How would you find the optimal values of $x_1$ and $x_2$?
+
+  - there is no constaint so you would not need to set up a Lagrangian
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+</div>
+
+
+Nonlinear programming basics - two variables
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Concave function of two variables
+
+  - $126x_1 - 9x_1^2 + 180x_2 - 12x_2^2$
+  - does this function meet concavity assumptions?
+    - take the first and second derivative
+
++ How would you find the optimal values of $x_1$ and $x_2$?
+
+  - there is no constaint so you would not need to set up a Lagrangian
+
+```{r two_var, eval = FALSE}
+# Make the function
+f1 <- function(x1, x2) 126*x1 - 9*x1^2 + 180*x2 - 12*x2^2 
+
+# Create the data
+Input_1 <- seq(0, 10, by = 1) 
+Input_2 <- seq(0, 10, by = 1) 
+Profit <- outer(Input_1, Input_2, f1) 
+
+# Graph the data using persp(), a base graphics function
+persp(x = Input_1, y = Input_2, z = Profit, phi = 30, theta = 60, 
+                 col = "yellow", ticktype = "detailed")
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r ref.label="two_var", echo = FALSE}
+# Call graph from previous chunk
+```
+
+</div>
+
+
+Nonlinear programming basics - convex set
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Convex set (of one variable)
+
+  - Where is the maximum?
+
+```{r}
+# Convex set
+con_set <- ggplot(data = data.frame(x = 0), mapping = aes(x = x)) + 
+  stat_function(fun = (function (x) 126*x - 9*x^2)) + 
+  geom_abline(intercept = 400, slope = -20, color = "red") +
+  xlim(0, 15) +
+  labs(title = "Convex Set") +
+  theme_classic()
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Print the graph
+con_set
+
+```
+
+</div>
+
+
+Nonlinear programming basics - non-convex set
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ The black line is not concave or convex over its whole range  
+
+  - Not a convex set  
+  - Not work for either min or max  
+  - Unless over limited range
+
+```{r}
+# Convex set
+non_con <- ggplot(data = data.frame(x = 0), mapping = aes(x = x)) + 
+  stat_function(fun = (function (x) f2 <- 50*x - 20*x^2 + 2*x^3)) + 
+  geom_abline(intercept = 25, slope = -2, color = "red") +
+  xlim(0, 7) +
+  labs(title = "Non-convex set") +
+  theme_classic()
+
+```
+
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Print the graph
+non_con
+
+```
+
+</div>
+
+
+Constrained optimization in R
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ There are a number of programs you can use for different types of optimization
+
+  - See **CRAN Task View: Optimization and Mathematical Programming**  
+
+[https://cran.r-project.org/web/views/Optimization.html](https://cran.r-project.org/web/views/Optimization.html)  
+
++ The primary package we will use is **nloptr**  
+
+    - **nloptr** is an R interface to **NLopt**  
+
+    - NLopt is an open source library of optimization algorithms  
+
+[https://nlopt.readthedocs.io/en/latest/NLopt_Introduction/](https://cran.r-project.org/web/views/Optimization.html)  
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ nloptr does not have a maximization setting   
+
+    - All problems have to be set up as a minimization  
+    - Remember, to convert a minimum to be a maximum just multiplying the objective function by -1  
+
++ It is necessary to select an optimization algorithm and starting values  
+
++ Nonlinear optimization is very technical  
+
+    - Many choices of optimization methods  
+    - Really kind of an art, so begin by trial and error  
+
++ **Syntax can be confusing**  
+
+    - We will work through some examples  
+
+</div>
+
+
+Constrained optimization in R
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Recall the problem we solved by hand from the notes
+
+$$
+max_{x_i} \; \pi = \; 126x_1 \; - \; 9x_1^2 \; + \; 180x_2 \; - \; 12x_2^2 \\
+subject \; to: \; 3x_1 \; + \; 2x_2 \; \le \; 16\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;  \\
+0 \; \le \; x_1, \; x_2 \;\;\;\;\;\;\;\;\;\\
+$$
+
++ Let's set this up and solve in R
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ But first make sure it meets maximization criteria by checking the first and section derivatives of the objective function:
+
+  - First w.r.t. $x_1$: $\partial \pi / \partial x_1 = 126 - 18x_1 \ge 0$ and
+  - Second w.r.t. $x_1$: $\partial^2 \pi / \partial x_1^2 = -18  \le 0$
+  - First w.r.t. $x_2$: $\partial \pi / \partial x_2 = 180 - 24x_2 \ge 0$ and
+  - Second w.r.t. $x_2$: $\partial^2 \pi / \partial x_2^2 = -24  \le 0$
+  - **Remember, it is the second derivative that indicates convaity vs convexity**
+
++ For _max_ a **_quasi-convex_** set of constraints
+
+  - quasi-convex means either convex or linear
+  - the constraint is linear
+    
++ So we are good to go
+
+</div>
+
+
+Setting up problems in nloptr
+=============================================
+
++ **nloptr** is set up to to accept R functions  
+
+  - we will set up **functions** for the objective and the constraints
+  - it is a maximum so need to multiply by $-1$
+
++ Recall defining f() as objective function and g() as constraint
+
+```{r}
+# The objective function
+eval_f <- function(x, a, b, c){
+  return( -(126*x[1] - 9*x[1]^2 + 180*x[2] - 12*x[2]^2 )) # This indicates x will be a vector with two elements
+  }
+
+# Constraint functions 
+# This one function creates all constraints
+eval_g <- function(x, a, b, c) { 
+  return( a*x[1] + b*x[2] - c )    # This will create as many constraints as there are elements
+  }                                # But a, b and c must all be the same length   
+
+# Define parameters of constraints, only one constraint so only 1 entry for each
+a <- c( 3 ) # Coefficients for column 1
+b <- c( 2 ) # Coefficients for column 2
+c <- c( 16 ) # Coefficients for rhs constaints
+
+```
+
+
+Solve the model, set the options
+=============================================
+
+```{r}
+# Set up model calling nloptr function and set values 
+nlp <- nloptr( x0 = c(0, 0),       # Set the inital values of x
+                                    # Should try range of initial values to check global solution
+                eval_f = eval_f,   # Call the obj fn
+                lb = c(  0,  0),    # Set lower and upper bounds on the decision variables
+                ub = c(Inf, Inf), 
+                eval_g_ineq = eval_g, # Call the inequality constraints, diff call for equality cons
+                opts = list("algorithm"="NLOPT_LN_COBYLA", # Set the search algorithm, use NLOPT_LN_COBYLA
+                            "xtol_rel" = 0.001), # Set search tolerance
+                a = a,  # Call constraint parmeter values
+                b = b, 
+                c = c) 
+
+```
+
+
+Solve and check solution makes sense
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Let's look at the results relative to the model
+
+  - The first bit is just a repeat of the model call and solution status
+  - There are three items I am interested in
+    1. Number of itterations - how many search steps to find the solution
+    2. The objective function value
+    3. The decision variable values
+
++ Why aren't the values whole numbers like when we sovled by hand?
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# Print model output
+print(nlp) 
+
+```
+
+</div>
+
+
+What about the dual value??
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Unfortunately nloptr does not provide dual values
+
+  - further, the sensitivity ranges are not applicable
+  - generally the duals, variables and object function will change if a binding constraint is changed
+  - this is because the non-linear functions we are working with are smooth
+    - incremental change is possible
+
++ To find the dual of a binding constraint you can add 1 to the constraint
+
+  - so the revised constraint in the above problem is $3x_1 + 2x_2 \le 17$
+  - then rerun the model
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# Set up model calling nloptr function and set values 
+nlp_d <- nloptr( x0 = c(0, 0),       # Set the inital values of x
+                                    # Should try range of initial values to check global solution
+                eval_f = eval_f,   # Call the obj fn
+                lb = c(  0,  0),    # Set lower and upper bounds on the decision variables
+                ub = c(Inf, Inf), 
+                eval_g_ineq = eval_g, # Call the inequality constraints, diff call for equality cons
+                opts = list("algorithm"="NLOPT_LN_COBYLA", # Set the search algorithm, use NLOPT_LN_COBYLA
+                            "xtol_rel" = 0.001), # Set search tolerance
+                a = a,  # Call constraint parmeter values
+                b = b, 
+                c = 17) 
+
+```
+
++ The original solution was $x_1$ = `r round(nlp$solution[1], 2)`, $x_2$ = `r round(nlp$solution[2], 2)`, and $\pi$ = \$`r -(round(nlp$objective, 2))`
+
++ The new solution is $x_1$ = `r round(nlp_d$solution[1], 2)`, $x_2$ = `r round(nlp_d$solution[2], 2)`, and $\pi$ = \$`r -(round(nlp_d$objective, 2))`
+
++ So the dual value is $`r -(round(nlp_d$objective, 2)) - -(round(nlp$objective, 2))`
+
+</div>
+
+
+Solve question 13.6-10 
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Does the set of equations fit the conditions of a minimization?
+
+  - Take the first and second derivative of each
+  - For _min_ need a convex objective fundtion
+    - positive second derivative
+  - For _min_ a **_quasi-concave_** set of constraints
+    - quasi-concave means either concave or linear
+
+$$
+min_{x_i} \;\;\; Z = 2x_1^2 \; + \; x_2^2 \\
+s.t.\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;  \\
+\;\;\;\; x_1 + x_2 \; \ge \; 10 \\
+\;\;\;\;\;\;\; x_1 - x_2 \; \ge \;-10 \\
+\;\;0 \; \le \; x_1, \; x_2    \\
+$$
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ The first and section derivatives of the objective function are:
+
+  - First w.r.t. $x_1$: $\partial Z / \partial x_1 = 4x_1 \ge 0$ and
+  - Second w.r.t. $x_1$: $\partial^2 Z / \partial x_1^2 = 4  \ge 0$
+  - First w.r.t. $x_2$: $\partial Z / \partial x_2 = 2x_2 \ge 0$ and
+  - Second w.r.t. $x_2$: $\partial^2 Z / \partial x_2^2 = 2  \ge 0$
+
++ The constraints are linear so have a convex set
+
+  - that is, the functions meet the conditions for a minimization
+
+</div>
+
+
+Set up the model in nloptr
+=============================================
+
++ **nloptr** is set up to to accept R functions  
+
+  - We will set up functions for the objective and the constraints
+
+```{r}
+# The objective function
+eval_f1 <- function(x, a, b, c){
+  return(2*x[1]^2 + x[2]^2 )       # This indicates x will be a vector with two elements
+  }
+
+# Constraint functions 
+# This one function creates all constraints
+eval_g1 <- function(x, a, b, c) { 
+  return( a*x[1] + b*x[2] - c )    # This will create as many constraints as there are elements
+  }                                # But a, b and c must all be the same length   
+
+# define parameters of constraints
+a <- c( 1,  1 ) # Coefficients for column 1
+b <- c( 1, -1 ) # Coefficients for column 2
+c <- c( 10,-10) # Coefficients for rhs constaints
+
+```
+
+
+Set the options and solve
+=============================================
+
++ Calling the nloptr() function with options set solves the model
+
+```{r}
+# Set up model calling nloptr function and set values 
+nlp1 <- nloptr( x0 = c(0, 0),       # Set the inital values of x
+                                    # Should try range of initial values to check global solution
+                eval_f = eval_f1,   # Call the obj fn
+                lb = c(  0,  0),  # Set lower and upper bounds on the decision variables
+                ub = c(Inf, Inf), 
+                eval_g_ineq = eval_g1, # Call the inequality constraints, diff call for equality cons
+                opts = list("algorithm"="NLOPT_LN_COBYLA", # Set the search algorithm, use NLOPT_LN_COBYLA
+                            "xtol_rel" = 0.001), # Set search tolerance
+                a = a,            # Call constraint parmeter values
+                b = b, 
+                c = c) 
+
+```
+
+
+Solve and check solution makes sense
+=============================================
+
+<div style="float: left; width: 70%;">
+
++ Let's look at the results relative to the model
+
+```{r}
+# Print model output
+print(nlp1) 
+
+```
+
+</div>
+
+<div style="float: right; width: 30%;">
+
+$$
+min_{x_i} \;\;\;\;\; 2x_1^2 \; + \; x_2^2 \\
+subject \; to: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;  \\
+\;\;\;\; x_1 + x_2 \; \ge \; 10 \\
+\;\;\;\;\;\;\; x_1 - x_2 \; \ge \;-10 \\
+\;\;0 \; \le \; x_1, \; x_2    \\
+$$
+
+</div>
+
+
+How was that problem solved??
+=============================================
+
++ We know in R the solution was found numerically
+
+  - Could you solve with Lagrangian method??
+    - yes, but you would need to use the Khun-Tucker conditions
+
++ I will add one more option to illustrate the numerical process  
+
+  - **print_level = 3** shows the itterations of the search algorithm  
+
+```{r}
+# Set up model calling nloptr function and set values 
+nlp1 <- nloptr( x0 = c(0, 0),       # Set the inital values of x
+                                    # Should try range of initial values to check global solution
+                eval_f = eval_f1,   # Call the obj fn
+                lb = c(  0,  0),  # Set lower and upper bounds on the decision variables
+                ub = c(Inf, Inf), 
+                eval_g_ineq = eval_g1, # Call the inequality constraints, diff call for equality cons
+                opts = list("algorithm"="NLOPT_LN_COBYLA", # Set the search algorithm, use NLOPT_LN_COBYLA
+                            "xtol_rel" = 0.001, # Set search tolerance
+                            print_level = 3),
+                a = a,            # Call constraint parmeter values
+                b = b, 
+                c = c) 
+```
+
+
+Examining a more complex objective function
+=============================================
+
+<div style="float: left; width: 50%;">
+
+$$
+max_{x_i} \; \pi = 32x_1 - x_1^4 + 50x_2 - 20x_2^2 + 2x_2^3 \\
+subject \; to: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\; \\
+3x_1 + 2x_2 \; \le \; 12 \\
+2x_1 + 5x_2 \; \le \; 30 \\
+0 \; \le \; x_1, x_2 
+$$
+
++ Does the set of equations fit the conditions of a maximization?
+
+  - Take the first and second derivative w.r.t. each variable
+  - For _max_ need a concave objective fundtion
+    - negative second derivative
+  - For _max_ a **_quasi-concave_** set of constraints
+    - the constraints are lionear so is fine
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ The objective function looks like it may have a limited range for maximization
+
+```{r echo = FALSE}
+# Make the function
+f2 <- function(x1, x2) 32*x1 - x1^4 + 50*x2 - 20*x2^2 + 2*x2^3
+
+# Create the data
+Input_1 <- seq(0, 3, by = 1) 
+Input_2 <- seq(0, 8, by = 1) 
+Profit <- outer(Input_1, Input_2, f2) 
+
+# Graph the data
+persp(x = Input_1, y = Input_2, z = Profit, phi = 30, theta = 60, 
+                 col = "yellow", ticktype = "detailed")
+
+```
+
+</div>
+
+
+Find the range of concavity
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Lets check the $1^{st}$ and $2^{nd}$ order conditions for $x_1$ and $x_2$
+
+  - f.o.c. $x_1$: $\partial \pi / \partial x_1 = 32 - 4x_1^3$
+  - s.o.c. $x_1$: $\partial^2\pi  \partial x_1^2 = - 12x_1^2 \le 0$ for all $x_1$
+  - f.o.c. $x_2$: $\partial \pi / \partial x_2 = 50 - 40x_2 + 6x_2^2$
+  - s.o.c. $x_2$: $\partial^2\pi  \partial x_2^2 = - 40 + 12x_2 \le 0$ for a range of $x_2$$
+
++ It appears the objective function is only concave in $x_2$ over a limited range--how find that range?
+
+  >- set equal to 0 and solve for $x_2$
+  >- $12x_2 = 40$
+  >- $x_2 = 40/12 = 3.333$
+  >- so the objective function is concave over the range of $x_1$ and $0 \le x_2 \le 3.333$
+  >- if we use initial conditions with $x_2 \le 3.333$ we will get a local max
+  >- regardless, not have to try different values to find global max 
+
+<br>
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Graph the data
+persp(x = Input_1, y = Input_2, z = Profit, phi = 30, theta = 60, 
+                 col = "yellow", ticktype = "detailed")
+
+```
+
+</div>
+
+
+Set up and run the model in nloptr
+=============================================
+
++ First lets run the model with initial starting point (0, 0)
+
+```{r message = FALSE, warning = FALSE}
+# This is a maximum so multiply the obj fn by -1
+eval_f2 <- function(x, a, b, c){
+  return( -(32*x[1] - x[1]^4 + 50*x[2] - 20*x[2]^2 + 2*x[2]^3) ) 
+  }
+
+# constraint function 
+eval_g2 <- function(x, a, b, c) { return( a*x[1] + b*x[2] - c )
+  }
+
+# define parameters 
+a <- c(  3,  2) 
+b <- c(  2,  5)
+c <- c( 12, 30)
+
+# Solve using algorithm NLOPT_LN_COBYLA 
+nlp2 <- nloptr( x0 = c(0, 0), 
+                eval_f=eval_f2, 
+                lb = c(  0,  0), 
+                ub = c(Inf, Inf), 
+                eval_g_ineq = eval_g2, 
+                opts = list("algorithm"="NLOPT_LN_COBYLA"), 
+                a = a, 
+                b = b, 
+                c = c ) 
+print(nlp2)
+
+```
+
++ So optimal solution is $x_1$ = `r round(nlp2$solution[1], 2)`, $x_2$ = `r round(nlp2$solution[2], 2)`, and $\pi$ = \$`r -(round(nlp2$objective, 2))`
+
+
+Set up and run the model in nloptr
+=============================================
+
++ Second lets run the model with initial starting point (0, 5)
+
++ Note, we do not need to redefine the model, just the initial condition
+
+```{r message = FALSE, warning = FALSE}
+# Solve using algorithm NLOPT_LN_COBYLA 
+nlp2 <- nloptr( x0 = c(0, 5), 
+                eval_f=eval_f2, 
+                lb = c(  0,  0), 
+                ub = c(Inf, Inf), 
+                eval_g_ineq = eval_g2, 
+                opts = list("algorithm"="NLOPT_LN_COBYLA"), 
+                a = a, 
+                b = b, 
+                c = c ) 
+print(nlp2)
+
+```
+
++ So optimal solution is $x_1$ = `r round(nlp2$solution[1], 2)`, $x_2$ = `r round(nlp2$solution[2], 2)`, and $\pi$ = \$`r -(round(nlp2$objective, 2))`
+
++ **This is a different solution with lower $\pi$**
+
+  - The lower $\pi$ is probably due to the constraints
+
+
+Nonlinear objective and constraints
+=============================================
+
++ Another example, but demonstrate benefit of gradients and Jacobians
+
+  - the constraints are now nonlinear
+
+$$
+max_{x_i} \; \pi = 32x_1 - x_1^4 + 50x_2 - 20x_2^2 + 2x_2^3 \\
+subject \; to: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\; \\
+3x_1^2 + 2x_2   \;  \le \; 12 \\
+2x_1 + 5x_2^2 \; \le \; 30 \\
+0 \; \le \; x_1, x_2 
+$$
+
++ Does this appear to be a convex set of constraints??  
+
+  - We have seen before the objective function is concave  
+  - Constraints are convex since second derivatives are positive
+    
+
+Nonlinear constraints
+=============================================
+
++ Constraint functions need to be specified individually due to exponents  
+
+    - Can you think of way to specify constraints
+
+```{r}
+# Constraints have different exponents
+eval_g2 <- function(x, a, b, c) { return( c(a[1]*x[1]^2 + b[1]*x[2]   - c[1],
+                                            a[2]*x[1]   + b[2]*x[2]^2 - c[2]) ) 
+  }
+
+```
+
+
+Solve the model, set the options
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r}
+# Solve using algorithm NLOPT_LN_COBYLA 
+nlp2 <- nloptr( x0 = c(0, 0), 
+                eval_f = eval_f2, 
+                lb = c(  0,  0), 
+                ub = c(Inf, Inf), 
+                eval_g_ineq = eval_g2, 
+                opts = list("algorithm"="NLOPT_LN_COBYLA",
+                            "xtol_rel" = 0.001), 
+                a = a, 
+                b = b, 
+                c = c ) 
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Results
+print(nlp2)
+
+```
+
+</div>
+
+
+Same example, but demonstrate benefit of gradients and Jacobians
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ The gradient is the vector of first order conditions of the objective function
+
+$$
+\partial \pi / \partial x_1 = 32 - 4x_1^3 \;\;\;\;\;\; \\
+\;\;\;\;\;\; \partial \pi / \partial x_2 = 50 - 40x_2 + 6x_2^2
+$$
+
++ The Jacobian is the matrix of first order conditions of the constraints
+
+$$
+2 * 3x_1 + 2  \\
+\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;2 + 2 * 5x_2 \\ 
+$$
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# Define gradient of objective function 
+eval_grad_f3 <- function( x, a, b, c){ return( c( -(32 - 4*x[1]^3),
+                                                  -(50 - 40*x[2] + 6*x[2]^2) ) )
+  }
+
+# Define Jacobian of constraint 
+  ## Note have to rbind since a matrix
+eval_jac_g3 <- function( x, a, b, c) { 
+  return( rbind(
+    c( 2*a[1]*x[1] , b[1] ),
+    c(   a[2]      , 2*b[2]*x[2] ) ) )
+  }
+
+```
+
+</div>
+
+
+Solve the model, set the options
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ See how the gradient and Jacobian are set  
+
++ Note we are using a different algorithm since using gradient and Jacobian
+
+  - NLOPT_LD_MMA
+
+```{r}
+# Solve using NLOPT_LD_MMA with gradient information supplied in separate function 
+nlp3 <- nloptr( x0 = c(0, 0), 
+                eval_f = eval_f2, 
+                eval_grad_f = eval_grad_f3, 
+                lb = c(  0,  0), 
+                ub = c(Inf, Inf), 
+                eval_g_ineq = eval_g2, 
+                eval_jac_g_ineq = eval_jac_g3, 
+                opts = list("algorithm"="NLOPT_LD_MMA",
+                            "xtol_rel" = 0.001), 
+                a = a, 
+                b = b, 
+                c = c) 
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+print(nlp3)
+
+```
+
++ How can you tell this model was solved more efficiently?
+
+</div>
+
+

@@ -1,0 +1,108 @@
+---
+title: "Week 4 Office Hours"
+author: "jugapper"
+date: "4/28/2020"
+output: html_document
+---
+
+
+```{r}
+
+# problem 9.1-2
+
+#initiate
+lp <- make.lp(0,12)
+#set direction
+lp.control(lp, sense = "min")
+# assign objective function
+af <- c(800,1300,400,700,1100,1400,600,1000,600,1200,800,900)
+af <- af/2
+set.objfn(lp, af)
+#add constraints
+add.constraint(lp, c(1,1,1,1,0,0,0,0,0,0,0,0), "<=", 12)
+add.constraint(lp, c(0,0,0,0,1,1,1,1,0,0,0,0), "<=", 17)
+add.constraint(lp, c(0,0,0,0,0,0,0,0,1,1,1,1), "<=", 11)
+add.constraint(lp, c(1,0,0,0,1,0,0,0,1,0,0,0), "=", 10)
+add.constraint(lp, c(0,1,0,0,0,1,0,0,0,1,0,0), "=", 10)
+add.constraint(lp, c(0,0,1,0,0,0,1,0,0,0,1,0), "=", 10)
+add.constraint(lp, c(0,0,0,1,0,0,0,1,0,0,0,1), "=", 10)
+
+# solve
+solve(lp)
+get.objective(lp)
+# add fixed costs
+16200+(40*100)
+
+
+```
+
+
+```{r}
+# Problem 9.1-4
+
+######  Transportation Problem
+
+#initiate lp model
+transp_lp <- make.lp(0,20)
+#set to min
+lp.control(transp_lp, sense = "min")
+#set objective function
+obj <- c(31,45,38,0,29,41,35,0,32,46,40,0,28,43,1000,0,29,42,1000,0)
+matrix(obj, nrow = 5, byrow = T)
+set.objfn(transp_lp, obj)
+
+# add Plant capacity constraints 
+plant_const <- c(400, 600, 400, 600, 1000)
+n <- 0
+for(i in seq(0,19,4)){
+  n <- n + 1
+  add.constraint(transp_lp, c(rep(0,i), rep(1,4), rep(0, 16-i)), "=", plant_const[n])
+}
+
+# add product demand constraints 
+prod_const <- c(600, 1000, 600, 800)
+n <- 0
+for(i in 0:3){
+  n = n + 1
+  add.constraint(transp_lp, c(rep(0,i), rep(c(1,0,0,0),4), 1, rep(0, 3-i)), "=", prod_const[n])
+}
+
+solve(transp_lp)
+
+get.primal.solution(transp_lp)
+
+matrix(get.primal.solution(transp_lp)[11:length(get.primal.solution(transp_lp))], nrow = 5, byrow = T)
+
+
+######  Assignment Problem
+
+#initiate lp model
+assign_lp <- make.lp(0,25)
+#set to min
+lp.control(assign_lp, sense = "min")
+#set objective function
+obj <- c(31,45,38,0,0,29,41,35,0,0,32,46,40,0,0,28,43,1000,0,0,29,42,1000,0,0)
+obj <- obj*c(600,1000,600,400,400)
+matrix(obj, nrow = 5, byrow = T)
+set.objfn(assign_lp, obj)
+
+# add Plant sources 
+for(i in seq(0,24,5)){
+  add.constraint(assign_lp, c(rep(0,i), rep(1,5), rep(0, 20-i)), "=", 1)
+}
+
+# add product destinations 
+for(i in 0:4){
+  add.constraint(assign_lp, c(rep(0,i), rep(c(1,0,0,0,0),4), 1, rep(0, 4-i)), "=", 1)
+}
+
+solve(assign_lp)
+
+matrix(get.primal.solution(assign_lp)[12:length(get.primal.solution(assign_lp))], nrow = 5, byrow = T)
+
+get.primal.solution(transp_lp)
+get.primal.solution(assign_lp)
+
+```
+
+
