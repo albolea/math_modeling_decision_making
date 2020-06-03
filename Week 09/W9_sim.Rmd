@@ -1,0 +1,1401 @@
+---
+title: "Week 9"
+subtitle: "Simulation, Ch 20"
+author: "Gareth Green"
+output: slidy_presentation
+---
+
+```{r echo = FALSE}
+# Course: 5260 Math models for decision making
+# Title: Week 9 - Simulation, Ch 20
+# Purpose: Demonstrate simulation using base, lpsolve and queueing 
+# Date: March 15, 2020
+# Author: Gareth Green
+
+```
+
+```{r echo = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+  
+
+```{r echo = FALSE, message = FALSE}
+# Load library
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+library(MASS) # load MASS for correlated random variables
+library(lpSolveAPI)
+library(queueing)
+`%>%` <- magrittr::`%>%`
+library(knitr)
+library(kableExtra)
+
+```
+
+
+What is simulation and why use it?
+=============================================
+
++ Simulation is a cost-saving technique to investigate the performance of a system
+
+  - A computerized mathematical technique that allows people to account for risk in quantitative analysis and decision making
+    - Imitate systems using probability distributions to randomly generate events
+  - Test different configurations of a system
+  - Simulation is commonly used to perform risk analysis in engineering, finance, economics, statistics, data science, etc 
+
+
+<div style="float: left; width: 50%;">
+
++ Advantages of simulation
+
+  - well suited to analyze complex and large practical problems
+  - is flexible for examining changes in the system variables and configuration
+  - examine and foster choice among alternatives
+  - informs policy decisions with reduced risk and cost of experimenting in the real system
+  - Provides decision-makers with a range of possible outcomes and the probabilities they will occur for any choice of action
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ Disadvantages of simulation
+
+  - It may take a long time to develop a good simulation model
+  - In certain cases simulation models can be very expensive and/or results are to abstract
+  - Difficult to incorporate all relevant information about the constraints and conditions for examination
+    - a model is only as good as it's construction and parameters relative to the actual system
+    - using results from a bad model can be disastrous
+
+</div>
+
+
+Markov process - the basis of simulation
+=============================================
+
+<div style="float: left; width: 55%;">
+
++ Simulation is based on applying randomly generated numbers to mathematical models
+
+  - random numbers are often generated from a stochastic Markov process
+
++ What is a Markov Process?  
+
+  >- A stochastic process where all future probabilities depend only on the current setting  
+  >- Does not depend on how you got there!!
+
+>+ Give an example where the Markov assumption would hold  
+
+>+ Give an example where the Markov assumption would not hold
+
+</div>
+
+<div style="float: right; width: 45%;">
+
++ We will be working through several topics today
+
+  >- generating random numbers in R
+  >- considerations of computing time
+  >- developing simulation models 
+  >- examine the simulation results
+
+</div>
+
+
+Random number generation in R
+=============================================
+
++ R contains many distribution functions, for example:  
+
+  - the normal, uniform, exponential, Poisson, and multi-variate normal (MASS package)
+  - You can learn more about each by looking up help page   
+    - e.g. ?Normal
+
++ Each distribution has four functions  
+
+  - For each distribution the function begins with d, p, q, r
+  - dnorm - the density function 
+  - pnorm - the distribution function 
+  - qnorm - the quantile function 
+  - rnorm - a function to generate normal random variates 
+
+
+Spend time to understand what each function gives you
+=============================================
+
++ Each of these is based on the standard normal with $\mu = 0, \sigma = 1$
+
++ Height of the standard normal at x = 0
+
+```{r}
+# Height of density at x = 0
+dnorm(0, mean = 0, sd = 1) 
+
+```
+
++ Probability in the lower tail from x = -1
+
+```{r}
+# Probability in lower tail from x = 0
+pnorm(-1, mean = 0, sd = 1) 
+
+```
+
++ The z-value for the 95th percentile
+
+```{r}
+# z-value of 75th percentile
+qnorm(0.95, mean = 0, sd = 1)  
+
+```
+
+
+Generate and visualize a random normal sample
+=============================================
+
+<div style="float: left; width: 45%;">
+
+```{r}
+# sample of 1000 standard normal variables
+n <- 1000
+r_dat <- data.frame(id = seq(1:n), x = rnorm(n)) 
+
+# Scatter plot
+p1 <- r_dat %>% 
+  ggplot(aes(x = id , y = x)) +
+  geom_point() +
+  theme_classic()
+
+p2 <- r_dat %>% 
+  ggplot() +
+  geom_histogram(aes(x = x, y = ..density..), bins = 20, fill = "white", color = "black") +
+  geom_density(aes(x = x, y = ..density..), color = "red") +
+  theme_classic()
+
+```
+
+</div>
+
+<div style="float: right; width: 55%;">
+
+```{r echo = FALSE}
+# Get graph from previous chunk
+p1 + p2
+
+```
+
+</div>
+
+
+Generate and visualize a random exponential sample
+=============================================
+
+<div style="float: left; width: 45%;">
+
+```{r}
+# sample of n random exponential variables
+r_dat <- data.frame(id = seq(1:n), x = rexp(n, rate = 2)) 
+
+# Scatter plot
+p1 <- r_dat %>% 
+  ggplot(aes(x = id , y = x)) +
+  geom_point() +
+  theme_classic()
+
+p2 <- r_dat %>% 
+  ggplot() +
+  geom_histogram(aes(x = x, y = ..density..), bins = 20, fill = "white", color = "black") +
+  geom_density(aes(x = x, y = ..density..), color = "red") +
+  theme_classic()
+
+```
+
+</div>
+
+<div style="float: right; width: 55%;">
+
+```{r echo = FALSE}
+# Get graph from previous chunk
+p1 + p2
+
+```
+
+</div>
+
+
+Generate and visualize a random Poisson sample
+=============================================
+
+<div style="float: left; width: 45%;">
+
+```{r}
+# sample of n random poisson variables
+n <- 1000
+r_dat <- data.frame(id = seq(1:n), x = rpois(n, lambda = 2)) 
+
+# Scatter plot
+p1 <- r_dat %>% 
+  ggplot(aes(x = id , y = x)) +
+  geom_point() +
+  theme_classic()
+
+p2 <- r_dat %>% 
+  ggplot() +
+  geom_histogram(aes(x = x, y = ..density..), bins = 20, fill = "white", color = "black") +
+  geom_density(aes(x = x, y = ..density..), color = "red") +
+  theme_classic()
+
+```
+
+</div>
+
+<div style="float: right; width: 55%;">
+
+```{r echo = FALSE}
+# Get graph from previous chunk
+p1 + p2
+
+```
+
+</div>
+
+`
+=============================================
+
+Generating random samples
+=============================================
+
++ It is important to set a starting point if want to reproduce results and for debugging
+
+  - For example, generating random sample will always give a different result  
+  - Generate 3 random samples from standard normal population and find mean
+
+```{r}
+z1 <- mean(rnorm(100))
+z2 <- mean(rnorm(100))
+z3 <- mean(rnorm(100))
+
+```
+
++ How do you expect the means of these to compare?  
+
+    >- `r kable(c(z1, z2, z3))`  
+
++ If I were debugging code I wouldn't know if the difference in results were related to changing code or randomness
+
+Generate a random sample
+=============================================
+
++ Instead set a starting point using set.seed() before each random number generation
+
+```{r}
+set.seed(1234)
+z1 <- mean(rnorm(100))
+set.seed(1234)
+z2 <- mean(rnorm(100))
+set.seed(1234)
+z3 <- mean(rnorm(100))
+z4 <- mean(rnorm(100))
+
+```
+
++ How do you expect the means of these to compare?  
+
+    >- `r c(z1, z2, z3)`  
+
++ Will z4 be the same or different than z1, z2 and z3?  
+
+    >- `r c(z4)`  
+
++ Always check output to make sure you are getting what you expect  
+
+
+Looping in simulation
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Need to be concerned with computing time when doing simulation  
+
+  - For-loops are usually slowest  
+    
++ Let's generate 10000 samples of 1000 standard normal using replicate and check the system time  
+
+```{r}
+# For loop
+set.seed(1234)
+m <- 10000 # number of samples, n is sample size
+sam <- replicate(m, rnorm(n)) # How does set.seed impact this?
+
+# Use for-loop to find mean of each column
+mu <- vector()
+system.time(
+  for(i in 1 : dim(sam)[2]){
+    mu <- c(mu, mean(sam[,i]))
+  }
+)
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ `apply` functions are much faster
+
+  - Apply functions are a family of functions in base R which allow you to repetitively perform an action on multiple chunks of data
+  - An apply function is essentially a loop, but run faster than loops and often require less code
+  - Include `apply()`, `tapply()`, `lapply()`, `sapply()`, `mapply()`, `vapply()`
+  - Many data types and functions can be passed into the Apply family
+  - Exist in many computer languages including Python and JavaScript
+  - Many references and tutorials like [this one](https://ademos.people.uic.edu/Chapter4.html)
+  
+```{r}
+# Use apply function
+system.time(
+  ma <- apply(sam, 2, mean)
+  )
+
+```
+
+</div>
+
+
+Vectorization
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r}
+# Use colMeans functions
+system.time(
+  mc <- colMeans(sam)
+)
+
+```
+
++ You can see it's possible to save significant time by paying attention to your simulation looping technique  
+
+  - Techniques such as vectorization can make your code substantially faster  
+    
++ What is **vectorization**??  
+
+  >- Vectorization of a matrix is a linear transformation which converts the matrix into a column vector  
+  >- Vectorization of an m ? n matrix A is the mn ? 1 column vector obtained by stacking the columns of the matrix A on top of one another  
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ Instead of looping over a matrix to preform a process on each column  
+
+  - You can preform a process on a larger vector  
+  - Significantly faster  
+
+</div>
+
+
+What about the tidyverse?
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ We have used the tidyverse a lot in the MSBA program
+
+  - how do tidyverse commands compare in speed?
+
+```{r}
+# Convert to data.frame so is tidy friendly
+sam <- as.data.frame(sam)
+
+# Use dplyr functions
+system.time(
+  mt <- sam %>% 
+    summarize_all(mean)
+)
+
+```
+
++ Why so slow!!??
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ You can see it's possible to save significant time by paying attention to your simulation data type and looping technique  
+
+  - Techniques such as vectorization can make your code substantially faster 
+  - Using matrices is much faster
+    
++ We won't spend time on this, but realize that working with computer scientists can significantly improve your code  
+
+  - We are learning how to solve problems, work with the CS team to be efficient  
+  - Common for Business Analytics team to pass off a "mock-up" of a solution to CS team  
+  - The CS team makes the solution scalable
+
+</div>
+
+
+`
+=============================================
+
+
+Generate a set of correlated variables
+=============================================
+
++ Suppose you need a set of correlated variables
+
++ Need covariance matrix (positive-definite symmetric)  
+
+  - First will generate two INDEPENDENT normal random variables that are uncorrelated
+
+
+```{r}
+# First will generate two INDEPENDENT normal random variables
+sig <- matrix(c(1, 0, 0, 1), 2, 2) # 0's give INDEPENDENT of off-diagonal
+                                   # 1's give sd
+sig
+```
+
+
+```{r}
+# Determinite must be positive (positive-definate)
+det(sig) 
+
+```
+
+
+Generate a set of uncorrelated variables
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Can use the `MASS` package to generate multiple variables
+
+```{r}
+# Generate matrix with independent variables using sig
+set.seed(1234)
+x <- mvrnorm(1000, rep(0, 2), sig)
+mean(x[,1])
+mean(x[,2])
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# more measures of independent variables
+sd(x[,1])
+sd(x[,2])
+cor(x[,1],x[,2])
+
+```
+
+</div>
+
+
+Visualize a set of uncorrelated variables
+=============================================
+
++ Note, I am using base plot because these are not data frames
+
+  - though could easily convert to be a data frame
+  
+```{r echo = F, include = T}
+# Vis
+plot(x, xlab = "x", ylab = "y")
+
+```
+
+
+Generate a set of correlated variables
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r}
+# See how differ if they are correlated, off-diagonal non-zero
+sig_cor <- matrix(c(1, 0.5, 0.5, 1), 2, 2) # What does this mean?
+sig_cor
+
+# Check determinite, must be non-negative (positive-definate)
+det(sig_cor) 
+
+# Generate a correlated matrix
+set.seed(1234)
+x_cor <- mvrnorm(1000, rep(0, 2), sig_cor)
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# Matrix measures
+mean(x_cor[,1])
+mean(x_cor[,2])
+sd(x_cor[,1])
+sd(x_cor[,2])
+cor(x_cor)
+
+```
+
+</div>
+
+
+Visualize a set of correlated variables
+=============================================
+
+```{r echo = F, include = T}
+# Visualize
+plot(x_cor, xlab = "x", ylab = "y")
+
+```
+
+
+Generate a set of functional random variables
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ What is the difference between correlated and functional variables??
+
+  >- Correlated not necessarily causal  
+  >- Functional explicitly indicates causation  
+
+```{r}
+# Generate functional random variable
+set.seed(1234)
+z <- rnorm(1000, 1, 1)
+
+# Functional relationship
+y <- 2 + z^2 + rnorm(100, 1, 2)
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# Matrix measures
+mean(z)
+mean(y)
+sd(z)
+sd(y)
+cor(z, y)
+
+```
+
+</div>
+
+
+Visualize the sets of variables
+=============================================
+
+```{r echo = F}
+# Vizualize all three
+p1 <- ggplot(as.data.frame(x), aes(x = x[,1], y = x[,2])) + geom_point() + ggtitle("Uncorrelated") + theme_classic() 
+p2 <- ggplot(as.data.frame(x_cor), aes(x = x_cor[,1], y = x_cor[,2])) + geom_point() + ggtitle("Correlated") + theme_classic() 
+p3 <- ggplot(as.data.frame(cbind(z, y)), aes(x = z, y = y)) + geom_point() + ggtitle("Functional") + theme_classic() 
+
+(p1 + p2) / (p3)
+
+```
+
+
+`
+=============================================
+
+
+Monte Carlo simulation
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Hear about it all the time, what is it??  
+
+  >- Def: Algorithms that rely on repeated random sampling to obtain numerical results
+  >- Generate possible results by substituting a range of values from a probability distribution for a variable or parameter that has inherent uncertainty  
+  >- Then calculate results over and over, each time using a different set of random values  
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+**Monte Carlo dice**
+
++ Classic example of rolling dice  
+
+  >- Suppose we rolled two fair dice  
+  >- What is the probability that their sum is at least 7?  
+  >- We will approach this by simulating many throws of two fair dice  
+  >- Then computing the fraction of those trials whose sum is at least 7  
+  >- It will be convenient to write a function that simulates the trials and returns TRUE if the sum is at least 7, and FALSE otherwise  
+  >- Die can land on 1 thru 6, so sample w/replacement from die space  
+  >- Rolls are independent so can form a matrix of 2 rows
+  >- Each column is a roll of 2 die  
+
+</div>
+
+
+Monte Carlo dice
+=============================================
+
+```{r}
+# Simulate dice as a matrix with two rows
+set.seed(1234)
+rolls <- matrix(replicate(1000, sample(1:6, replace = TRUE)), nrow = 2)
+
+# Take the mean of each column 
+mean(colSums(rolls) >= 7)
+
+```
+
++ Does this answer make sense?  
+
++ This is Monte Carlo because we simulated rolling dice and sampled from the "event" space
+
++ It is common to simulate events and sample from the simulation space
+
+  - Or you can sample from empirical data
+
+
+`
+=============================================
+
+
+Monte Carlo and linear programming
+=============================================
+
++ Recall the Ag problem from Week 2  
+
++ Recall the original set up:
+
+$$
+max_{GV}: \pi = 5G + 25V \;\;\;\;\\
+subject \; to \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\\
+Materials: 5G + 40V \; \le \; 1245 \;\;  \\
+Water: 4G + 8V \; \le \; 300 \;\; \\
+$$
+
++ First we will run the original model as a base case for comparison
+
++ Second, we generate 1000 years of weather data (usually you would use actual data) with mean 300 and sd 50
+
+  - Will treat water supply as a random variable
+
++ Third, we will run lpSolve sampling from the water supply distribution for each model iteration
+
+  - We will run a Monte Carlo simulation of cropping patterns based on random water supply, $\tilde w$ 
+
+
+Code the original set up
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r}
+# First make original model
+ag <- make.lp(0, 2)
+
+# Set up model
+set.objfn(ag, c(-5, -25))
+add.constraint(ag, c(5, 40), "<=", 1245)
+add.constraint(ag, c(4, 8),"<=", 300)
+
+# Solve model
+solve(ag)
+
+# Gather output in a table
+out <- as.matrix(t(get.primal.solution(ag))) 
+rownames(out) <- "solution"
+colnames(out) <- c("Profit", "Inputs", "Water", "Grains", "Veggies")
+out[,1] <- -1 * out[,1]
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Print output table
+kable(out) %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+```
+
+</div>
+
+
+The Monte Carlo farming simulation set up
+=============================================
+
++ Now set up optimization with Monte Carlo of water supply  
+
+    - Water supply is random due to weather, $\tilde W$ 
+    - Just getting water supply from random distribution
+
+$$
+max_{GV}: \pi = 5G + 25V \;\;\;\;\\
+subject \; to \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\\
+Materials: 5G + 40V \; \le \; 1245 \;\;  \\
+Water: 4G + 8V \; \le \; \tilde W \;\; \\
+$$
+
++ 1000 years Water supply is random, normally distributed $N(300, 50)$
+
+```{r}
+# number of simulations
+n <- 1000
+
+# Generate random variable with mean 300 and sd 50
+set.seed(1234)
+w <- rnorm(n, mean = 300, sd = 50)
+
+```
+
+
+Code the Monte Carlo farming simulation
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Code the model in a loop for different random water supplies
+
+```{r}
+# Vector to hold simulation results
+res_w <- vector()
+
+# First use a for-loop to run lpSolveAPI for each itteration
+system.time(
+for(i in 1:n){
+  # Define parameters of the lp
+  ag <- make.lp(0, 2)
+  set.objfn(ag, c(-5, -25))
+  add.constraint(ag, c(5, 40), "<=", 1245)
+  add.constraint(ag, c(4, 8),"<=", sample(w, 1, replace = TRUE))
+
+  # Solve model
+  solve(ag)
+
+  # Output
+  res_w <- rbind(res_w, get.primal.solution(ag))
+})
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ Code the function in sapply, we can compare the computing time
+
+```{r}
+# Make the function
+lp_ag_w <- function(w){
+  # Define parameters of the lp
+  ag <- make.lp(0, 2)
+  set.objfn(ag, c(-5, -25))
+  add.constraint(ag, c(5, 40), "<=", 1245)
+  add.constraint(ag, c(4, 8),"<=", w)
+
+  # Solve model
+  solve(ag)
+
+  # Output
+  return(get.primal.solution(ag))
+}
+
+set.seed(1234)
+# run through apply function to compare time
+system.time(
+res_lp_ag_w <- t(sapply(w, lp_ag_w)) # t() to traspose for correct dimmensions
+)
+
+```
+
+</div>
+
+
+Compare results across looping method
+=============================================
+
++ Why do the results differ??
+
+<div style="float: left; width: 50%;">
+
+```{r echo = F}
+# Convert obj fn to positive for max
+res_w[,1] <- -1 * res_w[,1]
+
+# Make table
+out_w <- round(rbind(apply(res_w, 2, mean), apply(res_w, 2, sd), 
+             apply(res_w, 2, max), apply(res_w, 2, min)), 2)
+rownames(out_w) <- c("mean", "sd", "max", "min")
+colnames(out_w) <- c("Profit", "Inputs", "Water", "Grains", "Veggies")
+
+# Print output
+kable(out_w, caption = "Loop results") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = F}
+# Convert obj fn to positive for max
+res_lp_ag_w[,1] <- -1 * res_lp_ag_w[,1]
+
+# Make table
+out_lp_ag_w <- round(rbind(apply(res_lp_ag_w, 2, mean), apply(res_lp_ag_w, 2, sd), 
+             apply(res_lp_ag_w, 2, max), apply(res_lp_ag_w, 2, min)), 2)
+rownames(out_lp_ag_w) <- c("mean", "sd", "max", "min")
+colnames(out_lp_ag_w) <- c("Profit", "Inputs", "Water", "Grains", "Veggies")
+
+# Print output
+kable(out_lp_ag_w, caption = "sapply results") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+```
+
+</div>
+
+
+Compare results across models
+=============================================
+
++ Compare original results to Monte Carlo results
+
+<div style="float: left; width: 50%;">
+
+```{r echo = F}
+tab <- kable(out, caption = "Original deterministic model") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+tab
+
+```
+
+</div>
+
+<div style="float: left; width: 50%;">
+
+```{r echo = F}
+tab_w <- kable(out_w, caption = "Simulation with random water supply") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+tab_w
+
+```
+
+</div>
+
+
++ It appears the variation of Veggies is small   
+
++ Grains vary significantly, probably due to low profit of Grains 
+
++ Also, profit has more of a downside than upside  
+
+  - Even though water is normally distributed, some  variables respond in a non-normal fashion
+
+
+Visualize the Monte Carlo farming simulation results
+=============================================
+
++ Quick visualization shows skewed responses of variables  
+
+  - And how differ from case under certainty
+
+```{r echo = F}
+# Visualize results
+p1 <- as.data.frame(res_w) %>% 
+  ggplot(aes(x = res_w[,1])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_w[,1]), color = "red") +
+  geom_vline(xintercept = mean(out[,1]), color = "blue") + 
+    labs(title = "Profit", x = "") + theme_classic()
+
+p2 <- as.data.frame(res_w) %>% 
+  ggplot(aes(x = res_w[,3])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_w[,3]), color = "red") +
+  geom_vline(xintercept = mean(out[,3]), color = "blue") + 
+  labs(title = "Water", x = "") + theme_classic()
+
+p3 <- as.data.frame(res_w) %>% 
+  ggplot(aes(x = res_w[,4])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_w[,4]), color = "red") +
+  geom_vline(xintercept = mean(out[,4]), color = "blue") + 
+  labs(title = "Grains", x = "") + theme_classic()
+
+p4 <- as.data.frame(res_w) %>% 
+  ggplot(aes(x = res_w[,5])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_w[,5]), color = "red") +
+  geom_vline(xintercept = mean(out[,5]), color = "blue") + 
+  labs(title = "Veggies", x = "") + theme_classic()
+
+(p1 + p2)/(p3 + p4)
+
+```
+
+
+`
+=============================================
+
+
+
+Now incorporate simulation with correlated variables
+=============================================
+
++ We discussed how plant water use could be negatively correlated to water supply in that drought is usually associated with higher than average temperatures, 
+
++ Plants may need more water during drought and less during periods of high water supply 
+
++ Create water use constraint with water use coefficient correlated to water supply
+
+    - $\tilde W$ is the random water supply  
+    - $\tilde z_W$ is water use z that is correlated to water supply from drought
+      - that is, hotter temperatures and less rain during drought requires more water applied to crops
+
+$$
+max_{GV}: \pi = 5G + 25V \;\;\;\;\\
+subject \; to \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\\
+Materials: 5G + 40V \; \le \; 1245 \;\;  \\
+Water: 4G + \tilde zV \; \le \; \tilde W \;\; \\
+$$
+
+
+Code correlated variables for farming problem
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ First will make a correlated covariance matrix  
+
++ Then generate correlated random variables and visualize
+
+```{r}
+# Correlation matrix, note 2500 is 50^2 - the water variance, and 1.7 is water use variance
+sig <- matrix(c(2500, -25, -25, 1.7), 2, 2) # This is covariance matrix
+det(sig) # Determinite must be non-negative (positive-definate)
+
+# Set seed
+set.seed(1234)
+
+# Create correlated variables
+w <- mvrnorm(1000, c(300, 8), sig)
+
+```
+
+</div>
+
+<div style="float: left; width: 50%;">
+
+```{r}
+# Numerical and graphical check to verify results
+mean(w[,1])
+mean(w[,2])
+sd(w[,1])
+sd(w[,2])
+cor(w)
+
+```
+
+</div>
+
+
+Visualize correlated variables for farming problem
+=============================================
+
+```{r echo = F}
+plot(w, ylab = "Water use", xlab = "Water")
+
+```
+
+ 
+Code Monte Carlo farming simulation with correlated variables
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r}
+# Number of simulations
+n <- 1000
+
+# Intialize vector to hold simulation results
+res_wc <- vector()
+
+# for-loop set up
+set.seed(1234)
+system.time(
+for(i in 1:n){
+  # Sample from the correlated distribution
+  z <- w[sample(nrow(w), size = 1, replace = TRUE), ]
+
+  # Define parameters of the lp
+  ag <- make.lp(0, 2)
+  set.objfn(ag, c(-5, -25)) # Set negative so is a maximum
+  add.constraint(ag, c(5, 40), "<=", 1245)
+  add.constraint(ag, c(4, z[2]),"<=", z[1])
+  
+  # Solve model
+  solve(ag)
+  
+  # Output
+  res_wc <- rbind(res_wc, get.primal.solution(ag))
+})
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# Make the function
+lp_ag_wc <- function(w, z){
+  # Define parameters of the lp
+  ag <- make.lp(0, 2)
+  set.objfn(ag, c(-5, -25)) # Set negative so is a maximum
+  add.constraint(ag, c(5, 40), "<=", 1245)
+  add.constraint(ag, c(4, z),"<=", w)
+  
+  # Solve model
+  solve(ag)
+
+  # Output
+  return(get.primal.solution(ag))
+}
+
+set.seed(1234)
+# run through apply function to compare time
+system.time(
+res_lp_ag_wc <- t(mapply(lp_ag_wc, w = w[,1], z = w[,2])) # t() to traspose for correct dimmensions
+)
+
+```
+
+</div>
+
+
+Compare looping type results
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = F}
+# Convert obj fn to positive for max
+res_wc[,1] <- -1 * res_wc[,1]
+
+out_wc <- round(rbind(apply(res_wc, 2, mean), apply(res_wc, 2, sd), 
+                     apply(res_wc, 2, max), apply(res_wc, 2, min)), 2)
+rownames(out_wc) <- c("mean", "sd", "max", "min")
+colnames(out_wc) <- c("ObjFn", "Inputs", "Water", "Grains", "Veggies")
+
+# Make table
+tab_wc <- kable(out_wc, caption = "Loop results") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+tab_wc
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = F}
+# Convert obj fn to positive for max
+res_lp_ag_wc[,1] <- -1 * res_lp_ag_wc[,1]
+
+# Make table
+out_lp_ag_wc <- round(rbind(apply(res_lp_ag_wc, 2, mean), apply(res_lp_ag_wc, 2, sd), 
+             apply(res_lp_ag_wc, 2, max), apply(res_lp_ag_wc, 2, min)), 2)
+rownames(out_lp_ag_wc) <- c("mean", "sd", "max", "min")
+colnames(out_lp_ag_wc) <- c("Profit", "Inputs", "Water", "Grains", "Veggies")
+
+# Print output
+kable(out_lp_ag_wc, caption = "mapply results") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+```
+
+</div>
+
+
+Compare model results
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = F}
+# print out results from each run
+tab_w
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = F}
+# print out results from each run
+# Make table
+tab_wc <- kable(out_wc, caption = "Simulation with correlated water supply and use") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+tab_wc
+
+```
+
+</div>
+
++ The variation of all variables increases
+  
+  - The solution is less stable when the positive correlation is included
+  - There is a greater need for water use by crops when water supply is low, and
+    - less need for water use by crops when water supply is high
+
+
+Compare visual results
+=============================================
+
++ Quick visualization shows skewness of results  
+
+  - means: blue is original, red is random, orange is correlated
+  
+```{r echo = F}
+# Visualize results
+p1 <- as.data.frame(res_wc) %>% 
+  ggplot(aes(x = res_wc[,1])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_wc[,1]), color = "orange") +
+  geom_vline(xintercept = mean(res_w[,1]), color = "red") +
+  geom_vline(xintercept = mean(out[,1]), color = "blue") + 
+  labs(title = "Profit", x = "") + theme_classic()
+
+p2 <- as.data.frame(res_wc) %>% 
+  ggplot(aes(x = res_wc[,3])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_wc[,3]), color = "orange") +
+  geom_vline(xintercept = mean(res_w[,3]), color = "red") +
+  geom_vline(xintercept = mean(out[,3]), color = "blue") + 
+  labs(title = "Water", x = "") + theme_classic()
+
+p3 <- as.data.frame(res_wc) %>% 
+  ggplot(aes(x = res_wc[,4])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_wc[,4]), color = "orange") +
+  geom_vline(xintercept = mean(res_w[,4]), color = "red") +
+  geom_vline(xintercept = mean(out[,4]), color = "blue") + 
+  labs(title = "Grains", x = "") + theme_classic()
+
+p4 <- as.data.frame(res_wc) %>% 
+  ggplot(aes(x = res_wc[,5])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_wc[,5]), color = "orange") +
+  geom_vline(xintercept = mean(res_w[,5]), color = "red") +
+  geom_vline(xintercept = mean(out[,5]), color = "blue") + 
+  labs(title = "Veggies", x = "") + theme_classic()
+
+(p1 + p2)/(p3 + p4)
+```
+
+
+`
+=============================================
+
+
+Now simulation with correlated and functional variables
+=============================================
+
++ Generate functional random variable where crop profit is a function of supply
+
+    - Specifically profit of Veggies 
+
++ I would usually estimate a demand relationship statistically, but here I will assume a profit function  
+
+    - However, LP does not allow functional relationships while solving  
+    - It is necessary to predict the decision variable from water supply 
+    - Then use the profit function to set profit coefficient. 
+
+$$
+max_{GV}: \pi = 5G + p(V)V \;\;\;\;\\
+subject \; to \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\\
+Materials: 5G + 40V \; \le \; 1245 \;\;  \\
+Water: 4G + \tilde zV \; \le \; \tilde W \;\; \\
+$$
+
+
+
+Monte Carlo farming simulation: estimate relationship
+=============================================
+
++ Begin by estimating a relationship between crop acres and water supply from the previous simulated data set   
+
+```{r}
+mod <- lm(res_wc[,5] ~ res_wc[,3])
+summary(mod)
+b <- mod$coefficients
+
+```
+
+Monte Carlo farming simulation with functional variables
+=============================================
+
++ Run simulation loop (not going to show apply function)  
+
+```{r}
+# Number of simulations
+n <- 1000
+
+# Intialize vector to hold simulation results
+res_wcp <- vector()
+
+# Use for-loop is necessary because lpSolveAPI has to be rerun for each itteration
+for(i in 1:n){
+  # Sample from the correlated distribution
+  z <- w[sample(nrow(w), 1, replace = TRUE), ]
+
+  # Estimate Veggie acres from water supply
+  v <- b[1] + b[2]*z[1]
+
+  # Calculate profit coefficient for Veggies from ASSUMED functional relationship
+  p <- 53.4 - v
+
+  # Define parameters of the lp
+  ag <- make.lp(0, 2)
+  set.objfn(ag, c(-5, -p))
+  add.constraint(ag, c(5, 40), "<=", 1245)
+  add.constraint(ag, c(4, z[2]),"<=", z[1])
+  
+  # Solve model
+  solve(ag)
+  
+  # Output
+  res_wcp <- rbind(res_wcp, get.primal.solution(ag))
+}
+
+```
+
+
+Compare results across Monte Carlo farming simulations
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = F}
+# Compare output from all models 
+tab_w
+
+```
+
+```{r echo = F}
+# Convert obj fn to positive for max
+res_wcp[,1] <- -1 * res_wcp[,1]
+
+# Make table of output
+out_wcp <- round(rbind(apply(res_wcp, 2, mean), apply(res_wcp, 2, sd), 
+                      apply(res_wcp, 2, max), apply(res_wcp, 2, min)), 2)
+rownames(out_wcp) <- c("mean", "sd", "max", "min")
+colnames(out_wcp) <- c("ObjFn", "Inputs", "Water", "Grains", "Veggies")
+
+# Make table
+tab_wcp <- kable(out_wcp, caption = "Simulation with random water supply, use and prices") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+tab_wcp
+
+```
+
+</div>
+
+<div style="float: left; width: 50%;">
+
+```{r echo = F}
+# Compare output from all models 
+tab_wc
+
+```
+
+</div>
+
+<div style="float: right; width: 40%;">
+
++ Profits are higher if they are negatively correlated with acreage of Veggies
+
+  - The variation of profits increases relative to the previous runs  
+  - Other variables are the same, only the economics change
+
+</div>
+
+
+Visualization of Monte Carlo farming simulation results
+=============================================
+
++ Quick visualization shows difference in results  
+
+  - means: blue is original, red is random, orange is correlated, green is functional
+  
+```{r echo = F}
+# Visualize results
+p1 <- as.data.frame(res_wcp) %>% 
+  ggplot(aes(x = res_wcp[,1])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_wcp[,1]), color = "green") +
+  geom_vline(xintercept = mean(res_wc[,1]), color = "orange") +
+  geom_vline(xintercept = mean(res_w[,1]), color = "red") +
+  geom_vline(xintercept = mean(out[,1]), color = "blue") + 
+  labs(title = "Profit", x = "") + theme_classic()
+
+p2 <- as.data.frame(res_wcp) %>% 
+  ggplot(aes(x = res_wcp[,3])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_wcp[,3]), color = "green") +
+  geom_vline(xintercept = mean(res_wc[,3]), color = "orange") +
+  geom_vline(xintercept = mean(res_w[,3]), color = "red") +
+  geom_vline(xintercept = mean(out[,3]), color = "blue") + 
+  labs(title = "Water", x = "") + theme_classic()
+
+p3 <- as.data.frame(res_wcp) %>% 
+  ggplot(aes(x = res_wcp[,4])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_wcp[,4]), color = "green") +
+  geom_vline(xintercept = mean(res_wc[,4]), color = "orange") +
+  geom_vline(xintercept = mean(res_w[,4]), color = "red") +
+  geom_vline(xintercept = mean(out[,4]), color = "blue") + 
+  labs(title = "Grains", x = "") + theme_classic()
+
+p4 <- as.data.frame(res_wcp) %>% 
+  ggplot(aes(x = res_wcp[,5])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(res_wcp[,5]), color = "green") +
+  geom_vline(xintercept = mean(res_wc[,5]), color = "orange") +
+  geom_vline(xintercept = mean(res_w[,5]), color = "red") +
+  geom_vline(xintercept = mean(out[,5]), color = "blue") + 
+  labs(title = "Veggies", x = "") + theme_classic()
+
+(p1 + p2)/(p3 + p4)
+
+```
+
+
+Monte Carlo simulation
+=============================================
+
++ The goal of simulation is to understand he performance of a system  
+
+    - You are simulating a system because you cannot run experiments  
+    
++ Monte Carlo simulation incorporates variation and uncertainty  
+
+    - Illuminates the impact of uncertainty on your system  
+    
++ There are numerous ways to run Monte Carlo simulation  
+
+    - But the general approach is the same  
+
++ We only several types of random variables  
+
+    - Could have pulled observations from actual data  
+    - treat like empirical distribution  
+    
+

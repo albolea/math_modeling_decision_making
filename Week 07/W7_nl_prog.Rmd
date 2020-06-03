@@ -306,7 +306,6 @@ $$
   - Second w.r.t. $x_1$: $\partial^2 \pi / \partial x_1^2 = -18  \le 0$
   - First w.r.t. $x_2$: $\partial \pi / \partial x_2 = 180 - 24x_2 \ge 0$ and
   - Second w.r.t. $x_2$: $\partial^2 \pi / \partial x_2^2 = -24  \le 0$
-  - **Remember, it is the second derivative that indicates convaity vs convexity**
 
 + For _max_ a **_quasi-convex_** set of constraints
 

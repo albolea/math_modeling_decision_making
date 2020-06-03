@@ -1,0 +1,400 @@
+---
+title: "Week 9"
+subtitle: "Queueing Simulation"
+author: "Gareth Green"
+output: slidy_presentation
+---
+
+```{r echo = FALSE}
+# Course: 5260 Math models for decision making
+# Title: Week 9 - Queuing Simulation
+# Purpose: Demonstrate simulation using base R 
+# Date: March 15, 2020
+# Author: Gareth Green
+
+```
+
+```{r echo = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+  
+
+```{r echo = FALSE, message = FALSE}
+# Load library
+library(queueing)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+`%>%` <- magrittr::`%>%`
+library(knitr)
+library(kableExtra)
+
+```
+
+
+Queueing simulation
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ The benefit of running simulation is we can see the distribution of variables rather than just mean values
+
+  - the mean values are good information
+  - realistically customers will not arrive at mean rate and service will not take mean time
+
++ The simulated parameters will be arrival and service time
+
+  - realize we could also simulate server outage and other important questions
+
++ The difficulty is that the `queueing` package does not support Monte Carlo simulation
+
+  - as far as I can tell `queueing` only finds mean values for standard variables
+  - valuable, but variation is important to understand
+
+<br>
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ Begin by coding Monte Carlo Simulation of an M/M/1 in the `queueing` package
+
+  - 3 people arrive per hour, lambda = 3
+  - service takes 12 min, mu = 5
+  - 1 server
+
++ Will build my own model to simulate a queueing system
+
+  - the Will simulate 1000 runs of for 250 customers
+    - 250 = 3 customers per hour * 12 hour day * 7 days per week
+    - so simulate 1 week's worth of business 1000 times, about 19 years worth
+  - will calculate mean times from queueing and compare to simulation
+  - will examine distributions of key variables
+    - L, Lq, W and Wq
+
+</div>
+
+
+Code the standard `queueing` set up
+=============================================
+
+<div style="float: left; width: 90%;">
+
++ First will find L, Lq, W and Wq using `queueing` package so we have a base line of comparison
+
+  - when possible you want to have a comparison for results of your own model to verify accuracy of your results
+
+```{r}
+# Set up problem with initial criteria and 10 customers
+lam <- 3; mu <- 5 ; s <- 1; 
+
+# Using "queueing" package
+q <- NewInput.MMC(lambda = lam, mu = mu, c = s)
+q_mod <- QueueingModel.i_MMC(q)
+# Place results as a row in a table
+  # Multiply wait by 60 minutes in an hour to convert time from hours to minutes
+q_tab <- data.frame(t(round(c(s, q_mod$L, q_mod$Lq, q_mod$W*60, q_mod$Wq*60), 2))) 
+
+colnames(q_tab) <- c("Servers", "L", "Lq", "W (minutes)", "Wq (minutes)")
+
+```
+
+
+```{r echo = F}
+# Show results, note that L, Lq, W, Wq remain constant
+(q_tab %>% 
+  kable(caption = "Queueing package mean steady state results") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")))
+
+```
+
+</div>
+
+
+Poisson and exponential distributions
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ An interesting feature of the two distributions:
+
+  - The Poisson shows the number of occurrences per time interval
+  - The exponential shows the length of time between occurrences
+
++ To set up the simulation model I will model the length between intervals of arrivals and service time
+
+  - I initially tried modeling the number of occurrences per time interval using the Poisson
+  - it did not work because I could not model the time in the queue
+
++ It is not unusual when you build a model that you have to modify your approach to find the variables of interest
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# Number of random variables
+n <- 1000
+
+# Number of customers in each run, which is about 1 week worth of business if lam = 3 per hour
+cust <- 250
+
+# Number of runs, i.e. number of weeks
+runs <- n
+
+# Set seed to get consistent results while coding
+set.seed(3) 
+
+# Generate random variables
+e_arr <- rexp(n, rate = lam)
+e_ser <- rexp(n, rate = mu)
+
+```
+
+</div>
+
+
+Coding the customer loop 
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ The model will take two stages
+
+  1. the model of customer arrival and service for a given number of customers
+      - in this case 250, about a weeks worth of customers
+  2. the loop to run the model many times
+      - 1000 times in this case, about 19 years worth of weeks
+
++ When I first coded the model I used data.frame
+
+  - once running I converted to matrix, waaaaaayyyyyyy faster
+    - should have done that from the beginning
+  - I could convert each loop to be a function but am short on time
+
++ So what is going on in this model!?
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r eval = F}
+# Build a table of results
+tab <- matrix(0, cust, 7)
+
+# Set initial time, wait time
+arr_time <- 0; beg_time <- 0; end_time <- 0; wait_time <- 0
+
+# Set up loop for every customer
+for(i in 1:cust){
+  # Minutes till next customer arrives to the system
+  t_arr <- round(sample(e_arr, 1, replace = TRUE) * 60, 0)
+
+  # Time at customer arrival
+  arr_time <- arr_time + t_arr
+  
+  # Customer wait time
+  wait_time <- ifelse(end_time > arr_time, end_time - arr_time, 0)
+  
+  # Set service begin time
+  beg_time <- arr_time + wait_time 
+  
+  # Random service times for each customer
+  t_ser <- round(sample(e_ser, 1, replace = TRUE) * 60, 0)
+  
+  # Set time service ends
+  end_time <- beg_time + t_ser
+
+  # Combine in a table
+  tab[i, ] <- round(c(i, t_arr, arr_time, beg_time, t_ser, end_time, wait_time), 1) 
+}
+
+```
+
+</div>
+
+
+Coding the weeks loop 
+=============================================
+
++ Need to run the 250 customers through 1000 weeks
+
+  - this code does not have the customer loop in it yet
+
+```{r eval = F}
+# Initialize results table
+total <- matrix(0, runs, 5)
+
+# Set loop for each week of runs
+for(j in 1:runs){
+  # Build a table of results
+  tab <- matrix(0, cust, 8)
+  
+  # Set initial time, wait time
+  arr_time <- 0; beg_time <- 0; end_time <- 0; wait_time <- 0
+  
+  # Set up loop for every customer
+
+# ---- PLACE CUSTOMER LOOP HERE ---- #
+    
+  # System results, column 7 is Wait, column 5 is service time, column 2 is arrival time
+  total[j, ] <- matrix(t(c(cust,
+                          (sum(tab[,7])/cust + sum(tab[,5])/cust)*(60/mean(tab[,2]))/60,
+                          (sum(tab[,7])/cust)*(60/mean(tab[,2]))/60,
+                          sum(tab[,7])/cust + sum(tab[,5])/cust,
+                          sum(tab[,7])/cust)))
+}
+  
+# Put header on table and name the header in the same line of code
+colnames(total) <- t_name <- c("Customers", "L", "Lq", "W", "Wq")
+
+```
+
+
+Run the combined loops 
+=============================================
+
+```{r}
+# Initialize results table
+total <- matrix(0, runs, 5)
+
+# Set loop for each week of runs
+for(j in 1:runs){
+  # Build a table of results
+  tab <- matrix(0, cust, 7)
+  
+  # Set initial time, wait time
+  arr_time <- 0; beg_time <- 0; end_time <- 0; wait_time <- 0
+  
+  # Set up loop for every customer
+  for(i in 1:cust){
+    # Minutes till next customer arrives to the system
+    t_arr <- round(sample(e_arr, 1, replace = TRUE) * 60, 0)
+  
+    # Time at customer arrival
+    arr_time <- arr_time + t_arr
+    
+    # Customer wait time
+    wait_time <- ifelse(end_time > arr_time, end_time - arr_time, 0)
+    
+    # Set service begin time
+    beg_time <- arr_time + wait_time 
+    
+    # Random service times for each customer
+    t_ser <- round(sample(e_ser, 1, replace = TRUE) * 60, 0)
+    
+    # Set time service ends
+    end_time <- beg_time + t_ser
+  
+    # Combine in a table
+    tab[i, ] <- round(c(i, t_arr, arr_time, beg_time, t_ser, end_time, wait_time), 1) 
+  }
+  
+  # System results, column 7 is Wait, column 5 is service time, column 2 is arrival time
+  total[j, ] <- matrix(t(c(cust,
+                          (sum(tab[,7])/cust + sum(tab[,5])/cust)*(60/mean(tab[,2]))/60,
+                          (sum(tab[,7])/cust)*(60/mean(tab[,2]))/60,
+                          sum(tab[,7])/cust + sum(tab[,5])/cust,
+                          sum(tab[,7])/cust)))
+}
+  
+# Put header on table and name the header in the same line of code
+colnames(total) <- t_name <- c("Customers", "L", "Lq", "W", "Wq")
+
+```
+
+
+Table of key results
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = F}
+# queueing package mean results
+(q_tab %>% 
+  kable(caption = "Queueing package mean steady state results") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")))
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = F}
+# Make table
+out <- round(rbind(apply(total, 2, mean), apply(total, 2, sd), 
+             apply(total, 2, max), apply(total, 2, min)), 2)
+rownames(out) <- c("mean", "sd", "max", "min")
+
+# Print output
+kable(out[,2:5], caption = "Custom queueing model simulation results") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+```
+
+</div>
+
+
+Distribution of key variables
+=============================================
+
++ **<span style="color: red;">red line</span>** is mean from simulation, **<span style="color: blue;">blue line</span>** is mean from `queueing` package
+
+```{r echo = F, fig.width=12}
+# Visualize results
+p1 <- as.data.frame(total) %>% 
+  ggplot(aes(x = total[,2])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(total[,2]), color = "red") +
+  geom_vline(xintercept = as.numeric(q_tab[2]), color = "blue") + 
+  labs(title = "Customers in the system per hour", x = "Customers") + theme_classic()
+
+p2 <- as.data.frame(total) %>% 
+  ggplot(aes(x = total[,3])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(total[,3]), color = "red") +
+  geom_vline(xintercept = as.numeric(q_tab[3]), color = "blue") + 
+  labs(title = "Customers in the queue per hour", x = "Customers") + theme_classic()
+
+p3 <- as.data.frame(total) %>% 
+  ggplot(aes(x = total[,4])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(total[,4]), color = "red") +
+  geom_vline(xintercept = as.numeric(q_tab[4]), color = "blue") + 
+  labs(title = "Customer time in the system", x = "Minutes") + theme_classic()
+
+p4 <- as.data.frame(total) %>% 
+  ggplot(aes(x = total[,5])) + geom_histogram(bins = 20, fill = "white", color = "black") + 
+  geom_vline(xintercept = mean(total[,5]), color = "red") +
+  geom_vline(xintercept = as.numeric(q_tab[5]), color = "blue") + 
+  labs(title = "Customers wait time in the queue", x = "Minutes") + theme_classic()
+
+(p1 + p2)/(p3 + p4)
+```
+
+
+
+Monte Carlo simulation
+=============================================
+
++ The goal of simulation is to understand he performance of a system  
+
+    - You are simulating a system because you cannot run experiments  
+    
++ Monte Carlo simulation incorporates uncertainty  
+
+    - Illuminates the impact of uncertainty on your system  
+    
++ There are numerous ways to run Monte Carlo simulation  
+
+    - But the general approach is the same  
+
++ We only several types of random variables  
+
+    - Could have pulled observations from actual data  
+    - treat like empirical distribution  
+    
+

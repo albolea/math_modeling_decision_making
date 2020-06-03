@@ -1,0 +1,1012 @@
+---
+title: "Week 8"
+subtitle: "Queueing Theory, Ch 17"
+author: "Gareth Green"
+output: slidy_presentation
+---
+
+```{r echo = FALSE}
+# Course: 5260 Math models for decision making
+# Title: Week 8 queueing theory, Ch 17
+# Purpose: Demonstrate applications of queueing models 
+# Date: March 15, 2020
+# Author: Gareth Green
+
+```
+
+```{r echo = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+
+```{r echo = FALSE}
+# Load "queueing" package
+library(queueing)
+`%>%` <- magrittr::`%>%`
+library(knitr)
+library(kableExtra)
+library(ggplot2)
+
+```
+  
+
+Typical queueing model questions
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ We use a number of formulas from the text derived from steady state  
+
+    - Derivations are long and detailed so not duplicate what is covered in the text  
+
++ Answer several questions  
+
+    1. Probability of _n_ people in queue system or queue  
+    2. Probability wait in queue system or queue $\gt t$, pg 752-3
+       - where $t$ is a specified time period to wait the business feels is reasonable
+    3. Mean number of customers in queue system or queue
+    4. Mean wait time in queue system or queue 
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ The utilization factor is important $\rho = \lambda /s \mu$, pg 735
+
+  - $\rho$ is the the expected proportion servers are busy  
+    - Represents the the system's service capacity $s\mu$, (servers * customer time/service) 
+    - that is being _utilized_ by arriving customers at rate $\lambda$, customers needing service
+
++ Related but determined separately is the cost of waiting and cost of additional servers
+
+  - these determine the economic trade-off of hiring more servers to reduce wait time
+
+</div>
+
+
+Problem set up
+=============================================
+
+<div style="float: left; width: 40%;">
+
++ Example #1, M/M/1/inf/inf/FCFS, aka M/M/1
+
+  - Two customers arrive per hour  
+  - It takes 15 min (i.e. 4 per hour) to complete service. 
+
++ We will use two approaches:
+
+  - first we will make calculations based on formulas derived in the text
+    - this illustrates the power of using the **steady state** assumption
+  - second we will use the `queueing` package to examine questions in more detail
+    - will also allow us to answer questions in more complicated models
+
+</div>
+
+<div style="float: right; width: 60%;">
+
++ Begin with estimating the probability of customers and wait times given one server
+  - note _s_ = 1 is the special case of an M/M/1 where $\rho = \lambda/\mu = 2/4 = 0.5$
+  - you should expect your server to be busy (i.e. utilized) half of the time
+  - must have $\rho < 1$ otherwise the queue will grow to infinity
+    - i.e. more people than capacity
+
+```{r}
+# Set parameters
+lam <- 2
+mu <- 4
+s <- 1 # One server case
+rho <- lam/(s*mu)
+
+# Probability of 0 people, see pg 751
+p0 <- 1 - rho 
+
+# Let's look for up to 5 people
+n <- 5
+
+# Build a table of results, go to n + 1 so can see Pn when there are 0 customers
+tab_1 <- as.data.frame(matrix(0, n + 1, 7))
+
+```
+
+</div>
+
+
+Code the calculations
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ We're not using any functions, just making calculations based on formula
+
+```{r}
+# Set a loop to make steady state calculations for each level of i customers in system
+for (i in 0:n){
+  # Probability of i people in queue system, see pg 751
+  Pn <- p0*rho^i 
+
+  # Mean number of customers in queue system, see pg 751-2
+  L <- lam/(mu - lam)  
+  
+  # Mean wait time in queue system, by Little's Law pg 736
+  W <- L/lam 
+  
+  #Mean wait time in queue waiting for service, by Little's Law pg 736
+  Wq <- W - 1/mu 
+  
+  # Mean number of customers in queue, by Little's Law pg 736
+  Lq <- lam * Wq 
+  
+  # Combine in a table
+  tab_1[i + 1, ] <- round(c(i, Pn, s, L, Lq, W*60, Wq*60), 3) 
+}
+
+# Put header on table and name the header in the same line of code
+colnames(tab_1) <- c_name <- c("Customers", "Pn", "s", "L", "Lq", "W (minutes)", "Wq (minutes)")
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Show results, note that L, Lq, W, Wq remain constant
+tab_1 %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+```
+
++ Recall what each of these variables represents? 
+
+  - Pn is the probability of n people in the system
+
++ Why are the other variables constant?
+
+  - because they are expected values in a steady state
+
+<br>
+
+</div>
+
+
+Can make similar calculations using the `queueing` package
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ `queueing` is an impressive package
+
+  - check the [documentation](https://www.rdocumentation.org/packages/queueing/versions/0.2.12)
+
++ What was the main reason we were able to make easy calculations above??
+
++ Now use the queueing package to make the same calculations  
+
+  - We can make own calculations easily for M/M/1 model  
+  - Gets much more complicated for other models so use `queueing` package  
+
++ For example, if $s = 1$, then $P_0 = 1 - \rho$
+
+  - but for $s > 1$, $P_0$ is a massive equation, see top pg 754
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ We can pull the output from each model run for different number of customers
+
+```{r }
+# create memory for a table of results, expand table
+n <- 10
+tab_q1 <- as.data.frame(matrix(0, n+1, 7))
+
+# Set a loop to make steady state calculations for each level of i customers in system
+for (i in 0:n){
+  # Using "queueing" package
+  q_mod1 <- NewInput.MM1(lam, mu, i)
+  m1 <- QueueingModel.i_MM1(q_mod1)
+
+  # Place results as a row in a table
+    # Multiply wait by 60 minutes in an hour to convert time from hours to minutes
+  tab_q1[i+1,] <- round(c(i, m1$Pn[i+1], s, m1$L, m1$Lq, m1$W*60, m1$Wq*60), 3) 
+}
+
+# Add column names
+colnames(tab_q1) <- c_name
+
+```
+
+</div>
+
+
+Model results
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = FALSE}
+# Show results, note that L, Lq, W, Wq remain constant
+tab_q1 %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Visualize the relationship between Pn
+tab_q1 %>%
+  ggplot(mapping = aes(x = Customers, y = Pn)) +
+  geom_line() +
+  labs(title = "The probability of customers in the system is decreasing", y = "Probability of customers") +
+  scale_x_continuous("Potential customers", breaks = seq(0, 10, by = 2)) +
+  theme_classic()
+
+```
+
+</div>
+
+Other output from queueing
+=============================================
+
+<div style="float: left; width: 45%;">
+
++ Important to pay attention to the definitions because there are many possibilities
+
++ Can use queuing package to calculate other values too
+
+  - Probability all servers are busy
+
+```{r}
+# Probability all servers are busy
+B_erlang(s, lam/mu)
+
+```
+
++ Probability to wait in queue because all servers are busy
+
+```{r}
+# Probability to wait in queue because all servers are busy
+C_erlang(s, lam/mu)
+
+```
+
++ C_erlang is higher because there is servers being busy and other customers in the queue
+
++ These are different than $P_n$ which is probability of $n$ customers in the system
+
+</div>
+
+<div style="float: right; width: 55%;">
+
++ Another way to get output from the model
+
+```{r}
+# Use the Report() function
+Report(m1)
+
+```
+
+</div>
+
+
+Example #2, M/M/3/inf/inf/FCFS aka M/M/3
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ A call center which has an arrival rate of 15 calls per hour  
+
+  - Each query take approximately 10 minutes ($\mu = 6$ per hour) to be resolved  
+  - Suppose there are 3 servers
+
++ The utilization rate is $\rho = \lambda/(s*\mu) = 15/(3*6) = 0.83$
+
++ **What are the system outcomes??** 
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# Set up problem with criteria and 8 customers
+n <- 8; lam = 15; mu = 6; s = 3 
+
+# Build a table of results
+tab_q2 <- as.data.frame(matrix(0, n+1, 7))
+
+# Loop to build table of results
+for (i in 0:n){
+  
+  # Using "queueing" package
+  q_mod2 <- NewInput.MMC(lambda = lam, mu = mu, c = s, n = n)
+  m2 <- QueueingModel.i_MMC(q_mod2)
+  
+  # Place results as a row in a table
+    # Multiply wait by 60 minutes in an hour to convert time from hours to minutes
+  tab_q2[i+1,] <- round(c(i, m2$Pn[i + 1], m2$Inputs$c, m2$L, m2$Lq, m2$W*60, m2$Wq*60), 3) 
+}
+
+# Add column names
+colnames(tab_q2) <- c_name
+
+```
+
+</div>
+
+
+Model output
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Average 6 people in the system and 3.5 in the queue
+
+  - Average 24 minutes in the system with 14 minutes waiting in the queue
+  - 14  minutes is a long time to wait for a 10 minute service
+
+```{r echo = FALSE}
+# Show results, note that L, Lq, W, Wq remain constant
+tab_q2[1:6, ] %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  add_footnote(paste("Probability all servers are busy is", round(B_erlang(s, lam/mu), 3))) %>% 
+  add_footnote(paste("Probability customers will wait in the queue", round(C_erlang(s, lam/mu), 3)))
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Visualize the relationship between Pn
+tab_q2 %>%
+  ggplot(mapping = aes(x = Customers, y = Pn)) +
+  geom_line() +
+  labs(title = "Most likely to have two customers in the system", 
+       subtitle = "The probability of 0 and 8 customers is about equal",
+       y = "Probability of customers") +
+  scale_x_continuous("Potential customers", breaks = seq(0, n, by = 2)) +
+  theme_classic()
+
+```
+
+</div>
+
+
+In M/M/C, how do variables change with Servers
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ We saw that with 3 servers there is most likely going to be:
+
+  1. Six customers in the system
+  2. Twenty-four minutes in the system
+  3. Fourteen minutes in the queue
+
++ But these are long wait times in the queue
+
+  - How many servers needed to reduce queue time to a reasonable amount
+  
+</div>
+
+<div style="float: right; width: 50%;">
+
++ Here we will loop over the number of servers
+
+```{r}
+# Number of cutomers, Initial servers
+n <- 8; int <- 3
+
+# Build a table of results
+tab_q3 <- as.data.frame(matrix(0, n+1-int, 7))
+
+# Loop to build table of results
+for (s in int:n){
+
+  # Using "queueing" package
+  q_mod3 <- NewInput.MMC(lambda = lam, mu = mu, c = s, n = n)
+  m3 <- QueueingModel.i_MMC(q_mod3)
+  
+  # Place results as a row in a table
+    # Multiply wait by 60 minutes in an hour to convert time from hours to minutes
+  tab_q3[s+1-int,] <- round(c(s, m3$L, m3$Lq, m3$W*60, m3$Wq*60, B_erlang(s, lam/mu), C_erlang(s, lam/mu)), 3) 
+}
+
+# Add column names
+colnames(tab_q3) <- c("Servers", "L", "Lq", "W (minutes)", "Wq (minutes)", "B_erlang", "C_erlang")
+
+```
+
+</div>
+
+
+Model results
+=============================================
+
+<div style="float: left; width: 55%;">
+
++ Wow, one more server reduces the wait time to just over 2 minutes
+
+  - and reduce the number of people waiting in the queue by 3
+  - getting 5 servers (2 more) reduces wait time to just over 30 seconds
+
+```{r echo = FALSE}
+# Show results, note that L, Lq, W, Wq remain constant
+tab_q3 %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+```
+
+</div>
+
+<div style="float: left; width: 45%;">
+
++ Easy to see why companies want to automate queues
+
+  - can reduce queue time dramatically with low cost of automation
+  - at least keep customers engaged as part of the queue process at low cost
+
+```{r echo = FALSE, fig.height=4, fig.width=6}
+# Visualize the relationship between Pn
+tab_q3 %>%
+  ggplot(mapping = aes(x = Servers, y = `Wq (minutes)`)) +
+  geom_line() +
+  labs(title = "Big reduction in queue time going from 3 to 4 servers") +
+  scale_x_continuous("Servers", limits = c(2, 8), breaks = seq(2, n, by = 2)) +  
+  scale_y_continuous("Minutes in the queue", limits = c(0, 15)) +
+  theme_classic()
+
+```
+
+</div>
+
+
+Work through a complete question
+=============================================
+
+<div style="float: left; width: 90%;">
+
+Several students had a start up idea of helping people with their software by using a software package that allows them to easily control someones computer remotely with their permission. Softie.com's goal is to deliver personal service over the internet. They believe there is a niche market for people that want to see and talk to actual people rather than bots. Softie.com is a student team trying to figure out how to launch and has the following parameters:
+
++ 2 server call center (to get started)
++ 9 inquiries per hour (based on an estimate from industry data)
++ Each query take approximately 12 minutes (5 per hour) to be resolved
+
++ What is the utilization rate?
+
+  >- The utilization rate indicates the proportion a system's servers are in use
+  >- $\rho = \lambda/(s*\mu) = 9/(2*5) = 0.9$
+  >- They are at a high utilization so they are likely to have some long wait times in the queue
+  >- It may be difficult to make it in a niche market with a goal of quality and long wait times
+  >- **Set up the problem in R**
+
+<br> 
+
+</div>
+
+Set up the problem
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ We will use the `queueing` package since $s > 2$
+
+```{r}
+# Set up problem with criteria and 10 customers
+lam = 9; mu = 5; s = 2; n <- 20;  
+
+# Using "queueing" package
+soft_mod <- NewInput.MMC(lambda = lam, mu = mu, c = s, n = n)
+sm <- QueueingModel.i_MMC(soft_mod)
+
+```
+
++ Though the probabilities are low, they drop off slowly
+
+  - The graph is over 20 customers
+  - This indicates long queue wait times
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Graph wait time in the servers vs wait time in the queue 
+ggplot(mapping = aes(x = seq(0:n-1), y = sm$Pn)) +
+  geom_line() +
+  theme_classic() +
+  theme(axis.text.x=element_text(hjust = -3), # This realigns the data with the correct customer
+        axis.ticks = element_blank()) +
+  scale_x_continuous("Customers", breaks = seq(0, n, by = 2), limits = c(0, n+1 )) +
+  scale_y_continuous("Probability of Customers", limits = c(0, max(sm$Pn)))
+
+```
+
+</div>
+
+
+Get full model results
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Any way you look at it these numbers are bad!
+
+  - W = `r round(sm$W * 60, 0)` minutes
+  - Wq = `r round(sm$Wq * 60, 0)` minutes
+
++ People won't wait that long for service even if it is amazing
+
++ The problem with hiring more servers is that the utilization rate drops 
+
+<div style="float: left; width: 45%;">
+
+  - Servers sit idle due to randomness of arriving customers
+  - Idle servers is expensive
+  - you can see $\rho$ drops off slowly
+
+</div>
+
+```{r echo = FALSE}
+# Make table showing utilization rate
+data.frame(Servers = seq(1:7)) %>%  
+  dplyr::transmute(Servers = Servers + 1) %>% 
+  dplyr::mutate(rho = round(lam/(Servers * mu), 2)) %>%
+  kable() %>% 
+  kable_styling(bootstrap_options = c("striped", "bordered"), full_width = FALSE)  
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Set up problem with criteria and 10 customers
+Report(sm)
+
+```
+
+</div>
+
+
+What about more servers??
+=============================================
+
+<div style="float: left; width: 60%;">
+
++ The student team is reluctant to hire more servers
+
+  - don't want servers sitting idle
+  - they hatch an idea that idle servers can provide additional services
+
++ **What is the probability currently with two servers that one could work on an optional service?**
+
+  >- That would be $\sum_0^1 P_i = P_0 + P_1$ = `r round(sum(sm$Pn[1:2]), 3)`
+  >- That is pretty low, how much do think it would increase with another server?
+
++ **What is the probability of time to work on other services if hire a third server?**
+
+```{r}
+# Set up problem with criteria and 20 customers
+lam = 9; mu = 5; s = 3; n <- 20;  
+
+# Using "queueing" package
+soft_mod <- NewInput.MMC(lambda = lam, mu = mu, c = s, n = n)
+sm <- QueueingModel.i_MMC(soft_mod)
+  
+```
+
+  >- That would be $\sum_0^2 P_i = P_0 + P_1 + P_2$ = `r round(sum(sm$Pn[1:3]), 3)`
+
+<br>
+
+</div>
+
+<div style="float: right; width: 40%;">
+
+```{r echo = FALSE}
+# Graph customers vs probability of customers in the system
+ggplot(mapping = aes(x = seq(0:n-1), y = sm$Pn)) +
+  geom_line() +
+  theme_classic() +
+  theme(axis.text.x=element_text(hjust = -3), # This realigns the data with the correct customer
+        axis.ticks = element_blank()) +
+  scale_x_continuous("Customers", breaks = seq(0, n, by = 2), limits = c(0, n+1 )) +
+  scale_y_continuous("Probability of Customers", limits = c(0, max(sm$Pn + 0.05)))
+
+```
+
+</div>
+
+
+Get full model results
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ This is substantially better, servers could have time for an additional product!
+
+  - W = `r round(sm$W * 60, 0)` minutes
+  - Wq = `r round(sm$Wq * 60, 0)` minutes
+
++ What are other results?
+
+  - you can see the Pn drops off quickly
+
++ Though the physical numbers look good, what does this trade-off come down to? 
+
+  >- **The cost of servers vs the cost of waiting**
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Set up problem with criteria and 10 customers
+Report(sm)
+
+```
+
+</div>
+
+
+How does hiring servers impact time in the queue
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Suppose Softie determines they can charge more if they can get the queue time to less than 30 seconds
+
+  >- How many servers will they need to hire?
+
++ Here we will loop over the number of servers
+
+```{r}
+# Set up problem with initial criteria and 20 customers
+lam = 9; mu = 5; s = 2; n <- 8; int <- 2
+
+# Build a table of results
+tab_smc <- as.data.frame(matrix(0, n+1-int, 7))
+
+# Loop to build table of results
+for (s in int:n){
+
+  # Using "queueing" package
+  sm_c <- NewInput.MMC(lambda = lam, mu = mu, c = s, n = n)
+  smc <- QueueingModel.i_MMC(sm_c)
+  
+  # Place results as a row in a table
+    # Multiply wait by 60 minutes in an hour to convert time from hours to minutes
+  tab_smc[s+1-int,] <- round(c(s, smc$L, smc$Lq, smc$W*60, smc$Wq*60, B_erlang(s, lam/mu), C_erlang(s, lam/mu)), 3) 
+}
+
+# Add column names
+colnames(tab_smc) <- c("Servers", "L", "Lq", "W (minutes)", "Wq (minutes)", "B_erlang", "C_erlang")
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Visualize the relationship between Pn
+tab_smc %>%
+  ggplot(mapping = aes(x = Servers, y = `Wq (minutes)`)) +
+  geom_line() +
+  labs(title = "Big reduction in queue time going from 2 to 3 servers") +
+  scale_x_continuous("Servers") +  
+  scale_y_continuous("Minutes in the queue") +
+  theme_classic()
+
+```
+
+</div>
+
+
+Numerical results show...
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = FALSE}
+# Show results, note that L, Lq, W, Wq remain constant
+tab_smc %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+```
+
+</div>
+
+<div style="float: right; width: 45%;">
+
++ Going from 2 to 3 is huge, but probably need to go to 4 servers
+
+  - 3 servers still has a 3.5 minute wait
+  - 4 servers has less than a 45 second wait
+
++ What is the probability that at least one of the call servers will be available to provide additional services?
+
+  >- recall B_erlang is the probability all servers are busy
+  >- C_erlang is the probability will have to wait in line
+  >- numbers for 4 serves shows small probability of all servers being busy and customers waiting in line
+
+</div>
+
+
+What if scenarios
+=============================================
+
+<div style="float: left; width: 50%;">
+
+Assume Softie.com purchased 2 more servers for a total of 4. But now Softie.com's incoming business doubles. How many servers will they need more to maintain a less-than one-minute queue time?
+
+```{r}
+# Set up problem with initial criteria and 20 customers
+lam = 9 * 2; mu = 5 ; s = 2; n <- 10; int <- 4
+
+# Build a table of results
+tab_smc <- as.data.frame(matrix(0, n+1-int, 7))
+
+# Loop to build table of results
+for (s in int:n){
+
+  # Using "queueing" package
+  sm_c <- NewInput.MMC(lambda = lam, mu = mu, c = s, n = n)
+  smc <- QueueingModel.i_MMC(sm_c)
+  
+  # Place results as a row in a table
+    # Multiply wait by 60 minutes in an hour to convert time from hours to minutes
+  tab_smc[s+1-int,] <- round(c(s, smc$L, smc$Lq, smc$W*60, smc$Wq*60, B_erlang(s, lam/mu), C_erlang(s, lam/mu)), 3) 
+}
+
+# Add column names
+colnames(tab_smc) <- c("Servers", "L", "Lq", "W (minutes)", "Wq (minutes)", "B_erlang", "C_erlang")
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r echo = FALSE}
+# Visualize the relationship between Pn
+tab_smc %>%
+  ggplot(mapping = aes(x = Servers, y = `Wq (minutes)`)) +
+  geom_line() +
+  labs(title = "Big reduction in queue time going from 2 to 3 servers") +
+  scale_x_continuous("Servers") +  
+  scale_y_continuous("Minutes in the queue") +
+  theme_classic()
+
+```
+
+</div>
+
+
+Numerical results show...
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r echo = FALSE}
+# Show results, note that L, Lq, W, Wq remain constant
+tab_smc %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+```
+
+</div>
+
+<div style="float: right; width: 45%;">
+
++ Going from 4 to  5 is huge, but need to go to 6 servers to be less than 1 minute wait
+
+  - 5 servers still has a 3.5 minute wait
+    - similar as going from 2 to 3 servers before
+  - 6 servers has less than a 1 minute wait
+    - before going from 3 to 4 had a 45 second wait
+    
++ Their business doubles but they only need to increase their servers by 50% to maintain a similar level of wait time in the queue
+
+  - of course this is mean time
+  - if we did a simulation we would see that some wait times are substantially larger and some substantially smaller
+    - we will look at this in the next module
+    - but Poisson is asymmetric to to you expect there to be more long waits or short waits?
+    - this is a case where the mean may not be a good measure
+
+<br>
+
+</div>
+
+
+What if have cost data
+=============================================
+
+<div style="float: right; width: 90%;">
+
++ What if we knew the cost of lost customers and servers??  
+
+  - Still not an optimization problem like in earlier chapaters  
+  - But we can find the optimal number of servers  
+    
++ **Problem set up**, same as before  
+
+  - A call center which has an arrival rate of 18 queries per hour  
+  - Each query take approximately 12 minutes (5 per hour) to be resolved   
+  - What is the cost minimizing number of servers if:  
+    - A server costs $15/hour  
+    - The firm loses $40 per lost customer
+    - Cusomers will leave if the wait is more than 30 seconds
+
+</div>
+
+
+Code the problem set up
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Similar to other queueing theory problems, but add costs
+
+```{r}
+# Set up problem with initial criteria and 10 customers
+lam = 18; mu = 5 ; s = 2; n <- 10
+
+# Minimum number of servers so queue not grow to infinity, ceiling rounds up to next integer
+int <- ceiling(lam/mu)
+
+# Profit per customer
+pi <- 40
+
+# Cost per server per hour
+cost <- 15
+
+# Build a table of results
+tab_smc <- as.data.frame(matrix(0, n+1-int, 8))
+
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ Note the time threshold of 30 seconds (0.5 minutes) for losing customers
+
+```{r}
+# Loop to build table of results
+for (s in int:n){
+
+  # Using "queueing" package
+  sm_c <- NewInput.MMC(lambda = lam, mu = mu, c = s, n = n)
+  smc <- QueueingModel.i_MMC(sm_c)
+
+  # Cost of lost customers
+  lp <- ifelse(smc$Wq*60 > 0.5, smc$Lq * pi, 0)
+  # Cost of servers
+  sc <- s*cost  
+  # Total cost
+  tc <- sc + lp
+  
+  # Place results as a row in a table
+    # Multiply wait by 60 minutes in an hour to convert time from hours to minutes
+  tab_smc[s+1-int,] <- round(c(s, smc$L, smc$Lq, smc$W*60, smc$Wq*60, lp, sc, tc), 2) 
+}
+
+```
+
+</div>
+
+
+Results
+=============================================
+
+<div style="float: left; width: 45%;">
+
+```{r echo = FALSE}
+# Add column names
+colnames(tab_smc) <- c("Servers", "L", "Lq", "W (minutes)", "Wq (minutes)", 
+                       "Lost Profit", "Server Cost", "Total Cost")
+
+# Show results, note that L, Lq, W, Wq remain constant
+tab_smc %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+```
+
+</div>
+
+<div style="float: right; width: 45%;">
+
++ Look for minimum TC  
+
++ 6 servers gives the minimum cost of trading off between servers and lost customers  
+
+  - Cost of lost customers decreases as cost of servers increases 
+  - Note the cost of lost customers is still positive from 6 to 7 servers
+    - inidicates it is optimal to lose some customers rather than hire additional servers
+    - this is based on the probability of needing 7 servers vs the cost of hiring an aditional server
+
++ Does anyone remember why we are using this calculated approach?
+
+</div>
+
+
+Why use the numerical approach?
+=============================================
+
+<div style="float: left; width: 47%;">
+
++ This looks like a basic calculus problem
+
+  - unconstrained minimization
+  - just take the derivative of total cost with respect to *s*, right?
+  - the function is complicated when $s > 1$
+  
++ Total cost = lost profit  + server cost
+
+  >- $TC =  L_q * \pi + s * cost$, which looks easy enough
+  >- $L_q$ = ${P_0(\lambda/\mu)^s\rho}\over{s!(1 - \rho)^2}$ = ${P_0(\lambda/\mu)^s\lambda/(s\mu)}\over{s!(1 - \lambda/(s\mu))^2}$
+  >- what is wrong with taking a derivative of this with respect to $s$?
+  >- factorials are discontinuous so a derivative doesn't make sense
+  >- Also, the equation for $P_0$ is ridiculous, top pg 754
+
+</div>
+
+<div style="float: right; width: 53%;">
+
+```{r echo = FALSE}
+# Graph the cost relationship
+tab_smc %>% 
+  ggplot(aes(x = Servers, y = `Lost Profit`)) +
+  geom_line(aes(y = `Lost Profit`), color = "red")  +
+  geom_line(aes(y = `Server Cost`), color = "blue")  +
+  geom_line(aes(y = `Total Cost`)) +
+  geom_hline(yintercept = min(tab_smc$`Total Cost`), linetype = "dotted") +
+  labs(title = "Should hire 6 servers even though lose some customers", x = "Servers", y = "Cost of service") +
+  theme_classic()
+
+```
+
+</div>
+
+Wrap up
+=============================================
+
+<div style="float: left; width: 90%;">
+
++ Queues are everywhere so are important to analyze and understand
+
+  - We barely scratched the surface of Queueing Theory
+  - Many online resources and [calculators](http://erlang.chwyean.com/erlang/erlangB.html)
+  - Work through the `queueing` package if you want to learn more
+
++ Can be very complex, we have only studied simple systems to understand the basics
+
+  - Could easily spend a quarter just studying Queueing Theory
+
++ We focused on using the steady state assumption and Little's Law
+
+  - This gave us good mean times to work with
+  - Next week we will look at simulations to see how these variables vary around the mean values
+
+</div>
+
+
