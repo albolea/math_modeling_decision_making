@@ -1,0 +1,693 @@
+---
+title: "Week 6"
+subtitle: "Integer programming, Ch 12"
+author: "Gareth Green"
+output: slidy_presentation
+---
+
+```{r echo = FALSE}
+# Course: 5260 Math models for decision making
+# Title: Week 6 - Integer programming, Ch 12
+# Purpose: Demonstarte integer programing of text examples 
+# Date: March 15, 2020
+# Author: Gareth Green
+
+```
+
+```{r echo = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+
+```{r echo = FALSE, message = FALSE}
+# Load packages
+library(lpSolveAPI)
+`%>%` <- magrittr::`%>%`
+library(knitr)
+library(kableExtra)
+
+```
+
+
+Begin with Ch 12.4 Example 1
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Produce at most 2 of 3 new products, but no restrictions  
+
+  - Can we decide which not to produce and the proper constraint?
+
++ Just one of two plants can produce the 2 new products  
+
+  - Want to keep one plant just for established products  
+
++ **Goal: Choose the products, the plant and the production rates to max profit**  
+
++ We will use the approach to first set up the model **without** ip constraints to see if we get an ip solution
+
+  - then we will include ip constraints to see the difference in the set up and solution
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+ <!-- ![](Data_12_4_Ex_1.jpg) --> 
+
+</div>
+
+
+Standard lp formulation
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ This is the standard set up:
+
+  - the objective function has profitability for all three products
+  - the production time constraint for each plant
+  - demand for each product
+
++ We are not using any special constaints
+
+  - will use lpsolveApi
+  - sensativeity analysis will work in this formulation since not using ip yet
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+$$ 
+Max \; \pi = 5x_1 + 7x_2 + 3x_3 \\
+Subject \; to:\\
+3x_1 + 4x_2 + 2x_3 \le 30 \\
+5x_1 + 7x_2 + 3x_3 \le 40 \\
+\: x_1 \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\le 7 \\
+\: \;\;\;\;\;\;\;\;x_2 \;\;\;\;\;\;\;\;\;\;\;\le 5 \\
+\: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\; x_3 \le 9 \\
+$$ 
+
+</div>
+
+
+Code the problem
+=============================================
+
+<div style="float: left; width: 50%;">
+
+```{r results = "hide"}
+# hide this section to avoid long output page in slides
+ex1_lp <- make.lp(0, 3)
+lp.control(ex1_lp, sense = "max")
+
+# Set up model
+obj_fn <- c(5, 7, 3)
+set.objfn(ex1_lp, obj_fn)
+add.constraint(ex1_lp, c(3, 4, 2), "<=", 30)
+add.constraint(ex1_lp, c(4, 6, 2), "<=", 40)
+add.constraint(ex1_lp, c(1, 0, 0), "<=", 7)
+add.constraint(ex1_lp, c(0, 1, 0), "<=", 5)
+add.constraint(ex1_lp, c(0, 0, 1), "<=", 9)
+```
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+```{r}
+# review model
+ex1_lp
+
+```
+
+</div>
+
+
+Solve the problem and check results
+=============================================
+
+```{r echo = FALSE, include = FALSE}
+# Solve the model
+solve(ex1_lp)
+
+### Sensitivity Analysis
+ps <- get.primal.solution(ex1_lp)
+obj_sa <- get.sensitivity.obj(ex1_lp)
+rhs_sa <- get.sensitivity.rhs(ex1_lp)
+
+nv <- length(get.variables(ex1_lp))
+mc <- length(get.constr.type(ex1_lp))
+ov <- paste0("Objective Value = ", ps[1])
+
+sa_tab <- rbind(ps[2:(nv + mc + 1)], 
+                round(c(rhs_sa$duals[1:mc], obj_fn), 2),
+                round(c(rhs_sa$dualsfrom[1:mc],obj_sa$objfrom), 2),
+                round(c(rhs_sa$dualstill[1:mc],obj_sa$objtill), 2)) 
+colnames(sa_tab) <- c(rownames(ex1_lp), colnames(ex1_lp))
+rownames(sa_tab) <- c("solution", "duals/coef", "Sens From", "Sens Till")      
+
+# Substitute "inf" and "-inf" so tables are easier to read
+sa_tab <- ifelse(sa_tab == -1.000e+30, "-inf", sa_tab)
+sa_tab <- ifelse(sa_tab == 1.000e+30, "inf", sa_tab)
+
+```
+
+```{r echo = FALSE}
+# Print the table
+knitr::kable(sa_tab, format.args = list(big.mark = ",")) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  kableExtra::add_footnote(label = ov, notation = "none")
+
+```
+
++ Standard lp results indicate:
+
+  - Produces all three new products - violates the _"max two product restriction"_  
+    - Can see since because C1, C2, C3 all have values
+    - Note, you would think dual on R3 would be positive but relaxing constraint not increase profit
+
+  - Uses both plants to produce new products - violates the _"max one plant restriction"_
+    - Can see because both equal constraint and have positive dual  
+
++ So not achieve managements objectives without additional restrictions
+
+
+Now Ch 12.4 Example 1 with ip formulations
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ Management objectives
+
+  - Produce at most 2 of 3 new products  
+  - Just one of two plants can produce the 2 new products  
+  - **Choose the products, the plant and the production rates to max profit**  
+
++ Set up ip model, now there are:   
+
+  >- 3 continuous x variables  
+    
++ How many auxilary y binary variables ??
+
+  >- 3, one for each product  
+  >- 1, for plant selection 
+    
++ How many additional constraints?
+
+  >- 4 for the products
+  >- none for the plant selection
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ How add the new variables to the original model?
+
+$$ 
+Max \; \pi = 5x_1 + 7x_2 + 3x_3 \\
+Subject \; to:\\
+3x_1 + 4x_2 + 2x_3 \le 30 \\
+5x_1 + 7x_2 + 3x_3 \le 40 \\
+\: x_1 \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\le 7 \\
+\: \;\;\;\;\;\;\;\;x_2 \;\;\;\;\;\;\;\;\;\;\;\le 5 \\
+\: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\; x_3 \le 9 \\
+$$ 
+
++ 2 of 3 products is a _K_ out of _N_ constraint
+
++ Using one plant is a mutually exclusive _either-or_ constraint
+
++ Write down the standard formulation above
+
+  - now write in the new constraints
+
+<br>
+</div>
+
+
+Set up With ip variables and constraints
+=============================================
+
+<div style="float: left; width: 50%;">
+
+$$ 
+Max \; \pi = 5x_1 + 7x_2 + 3x_3 \\
+Subject \; to:\\
+3x_1 + 4x_2 + 2x_3 \le 30 \\
+5x_1 + 7x_2 + 3x_3 \le 40 \\
+\: x_1 \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\le 7 \\
+\: \;\;\;\;\;\;\;\;x_2 \;\;\;\;\;\;\;\;\;\;\;\le 5 \\
+\: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\; x_3 \le 9 \\
+$$ 
+
++ See the difference
+
+  - Add four more constraints for the products
+  - The plant constraints are modified
+
+</div>
+
+<div style="float: right; width: 50%;">
+
+$$ 
+Max \; \pi = 5x_1 + 7x_2 + 3x_3 \\
+Subject \; to:\\
+3x_1 + 4x_2 + 2x_3 \le 30 + My_4 \\
+5x_1 + 7x_2 + 3x_3 \le 40 + M(1 - y_4) \\
+\: x_1 \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\le 7 \\
+\: \;\;\;\;\;\;\;\;x_2 \;\;\;\;\;\;\;\;\;\;\;\le 5 \\
+\: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\; x_3 \le 9 \\
+\: \;\;\;\;\;x_1 \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\le My_1 \\
+\: \;\;\;\;\;\;\;\;\;\;\;\;\;x_2 \;\;\;\;\;\;\;\;\;\;\;\le My_2 \\
+\: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\; x_3 \le My_3 \\
+\: \;\;\;y_1 + y_2 + y_3 \le 2 \\
+$$ 
+
++ Note that $y_1,\: y_2, \: y_3,$ and $y_4$ are new choice variables 
+
+</div>
+
+
+Coding the ip formulations
+=============================================
+
+```{r results = "hide"}
+# hide this section to avoid long output page in slides
+ex1_ip <- make.lp(0, 7)
+lp.control(ex1_ip, sense = "max")
+
+```
+
+```{r}
+# Set penalty to force either-or choice of constraints
+M <- 1000
+
+# Add 0's for y coeff since y does not add to obj fn
+obj_fn <- c(5, 7, 3, 0, 0, 0, 0)
+set.objfn(ex1_ip, obj_fn)
+
+# Constraint on variable values, standard constraint
+add.constraint(ex1_ip, c(1, 0, 0, 0, 0, 0, 0), "<=", 7)
+add.constraint(ex1_ip, c(0, 1, 0, 0, 0, 0, 0), "<=", 5)
+add.constraint(ex1_ip, c(0, 0, 1, 0, 0, 0, 0), "<=", 9)
+
+# Either-or constraint, if y4 = 1 second const bind, if y4 = 0 first bind
+# Why have M on right hand side??
+# Do the math to ensure you understand
+add.constraint(ex1_ip, c(3, 4, 2, 0, 0, 0,-M), "<=", 30)
+add.constraint(ex1_ip, c(4, 6, 2, 0, 0, 0, M), "<=", 40 + M)
+
+# Multiply y by large value to insure x can be large enough if y = 1, x <= My
+add.constraint(ex1_ip, c(1, 0, 0,-M, 0, 0, 0), "<=", 0)
+add.constraint(ex1_ip, c(0, 1, 0, 0,-M, 0, 0), "<=", 0)
+add.constraint(ex1_ip, c(0, 0, 1, 0, 0,-M, 0), "<=", 0)
+# Get 2 of the 3 products
+add.constraint(ex1_ip, c(0, 0, 0, 1, 1, 1, 0), "<=", 2)
+
+# Set the type (real, integer or binary) of each decision variable
+set.type(ex1_ip, 4, "binary")
+set.type(ex1_ip, 5, "binary")
+set.type(ex1_ip, 6, "binary")
+set.type(ex1_ip, 7, "binary")
+
+# review model
+ex1_ip
+
+```
+
+
+Solving the model
+=============================================
+
+```{r echo = FALSE, include = FALSE}
+# Solve the model, if this return 0 an optimal solution is found
+solve(ex1_ip)
+
+```
+
+<div style="float: left; width: 50%;">
+
++ We will not print out the usual table since the sensitivity analysis does not work with ip
+
++ The IP $\pi$ = `r get.objective(ex1_ip)`
+
+  - Under lp $\pi$ = `r get.objective(ex1_lp)`, why different?
+
++ Which products got produced and how much??
+
+  - variables are `r get.variables(ex1_ip)` 
+  - $y_1$ = 1 and $y_3$ = 1  
+  - Products 1 and 3  
+    
++ Which plant is used?  
+
+  - $y_4$ = 1, indicates plant 1 not constraining
+  - Select plant 2
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ Constraint values
+
+`r get.constraints(ex1_ip)`
+
+$$ 
+Max \; \pi = 5x_1 + 7x_2 + 3x_3 \\
+Subject \; to:\\
+3x_1 + 4x_2 + 2x_3 \le 30 + My_4 \\
+5x_1 + 7x_2 + 3x_3 \le 40 + M(1 - y_4) \\
+\: x_1 \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\le 7 \\
+\: \;\;\;\;\;\;\;\;x_2 \;\;\;\;\;\;\;\;\;\;\;\le 5 \\
+\: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\; x_3 \le 9 \\
+\: \;\;\;\;\;x_1 \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\le My_1 \\
+\: \;\;\;\;\;\;\;\;\;\;\;\;\;x_2 \;\;\;\;\;\;\;\;\;\;\;\le My_2 \\
+\: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\; x_3 \le My_3 \\
+\: \;\;\;y_1 + y_2 + y_3 \le 2 \\
+$$ 
+
+</div>
+
+
+Allocating advertisements, Ch 12.4 example 2
+=============================================
+
+<div style="float: left; width: 50%;">
+
++ We will follow the text and formulate two methods:
+
+  - first as a MUTUALLY EXCLUSIVE arrangement
+  - second as CONTINGENT  arrangement
+
++ Allocating 5 marketing advertisements to 3 products 
+
+  - maximum of 3 advertisements for one product
+  - minimum of 0 for any one product (no negative advertisements)
+
++ The firm has estimated the profitability of each ad for each product
+
+  - Note the profit is not linear (see Table 12.3, bottom  page 492)
+  - Table 12.3 shows each of the possibilities for the number of ads for each product
+  - This shows a muttually exclusive set up
+    - if a product has 2 ads it cannot have 0, 1 or 3 ads
+
+</div>
+
+<div style="float: right; width: 50%;">
+
++ The objective function is (note all 0 coefficients are not included):
+
+$$
+\: Max \; \pi = y_{11} + 3y_{12} + 3y_{13} + 2y_{22} + 3y_{23} \\
+\: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\; - y_{31} + 2y_{32} + 4y_{33}\\
+$$
+
++ Next we need to set up MUTAL EXCLUSIVITY
+
+  - that means only one section each column can occur
+  - note that the 0 for $y_{12}$ incates 0 profit for 1 ad on product 2
+
+$$
+\: \;\;\;y_{11} + y_{12} + y_{13} \le 1 \\
+\: \;\;\;y_{21} + y_{22} + y_{23} \le 1 \\
+\: \;\;\;y_{31} + y_{32} + y_{33} \le 1 \\
+$$ 
+
++ Finally we need to make sure there are 5 advertisments
+
+$$
+\: y_{11} + 2y_{12} + 3y_{13} + y_{12} + 2y_{22} + 3y_{32} \\
+\: \;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;+ y_{13} + 2y_{23} + 3y_{33} = 5 \\
+$$
+
++ These make up the model and the $y_{ij}$ determines how many ads for product $x_j$
+
+<br>
+</div>
+
+
+Coding the mutually exclusive formulation
+=============================================
+
+```{r results = "hide"}
+# This model has 9 choice variables that are binary
+ex2_1 <- make.lp(0, 9)
+lp.control(ex2_1, sense = "max")
+
+```
+
+```{r}
+# Add obj fn coeff
+obj_fn <- c(1, 3, 3, 0, 2, 3, -1, 2, 4)
+set.objfn(ex2_1, obj_fn)
+
+# Constraints are based on possible number of each
+# Variable numbers      1  2  3  4  5  6  7  8  9
+add.constraint(ex2_1, c(1, 1, 1, 0, 0, 0, 0, 0, 0), "<=", 1)
+add.constraint(ex2_1, c(0, 0, 0, 1, 1, 1, 0, 0, 0), "<=", 1)
+add.constraint(ex2_1, c(0, 0, 0, 0, 0, 0, 1, 1, 1), "<=", 1)
+
+# Constraint only select 3 crews
+add.constraint(ex2_1, c(1, 2, 3, 1, 2, 3, 1, 2, 3), "=", 5)
+
+# Set the type (real, integer or binary) of each decision variable
+# This may or maynot impact the solution (no impact in this problem)
+set.type(ex2_1, 1, "binary")
+set.type(ex2_1, 2, "binary")
+set.type(ex2_1, 3, "binary")
+set.type(ex2_1, 4, "binary")
+set.type(ex2_1, 5, "binary")
+set.type(ex2_1, 6, "binary")
+set.type(ex2_1, 7, "binary")
+set.type(ex2_1, 8, "binary")
+set.type(ex2_1, 9, "binary")
+
+# review model
+ex2_1
+
+```
+
+
+Solving the model
+=============================================
+
+```{r echo = FALSE, include = FALSE}
+# Solve the model, if this return 0 an optimal solution is found
+solve(ex2_1)
+
+```
+
+
++ The Mutually Exclusive formation gives $\pi$ = `r get.objective(ex2_1)`
+
++ How many ads did each product get??
+
+  - variables are `r get.variables(ex2_1)` 
+    - $y_{12}$ = 1 so $x_1$ gets 2 ads 
+    - $y_{33}$ = 1  so $x_3$ gets 3 ads 
+    - so $x_2$ gets no ads  
+
++ Constraint values: `r get.constraints(ex2_1)`
+
+  - $x_1$ and $x_3$ each have at least one ad
+  - there are a total of 5 ads
+
+
+Allocating advertisements, Ch 12 example 2, formulation 2 
+=============================================
+
++ The fact that we can code the same problem multiple ways highlights the fact that...
+
+  - **the structure of the problem defines it, not the application**
+
++ Now we will use the CONTINGENT formulation of allocating ads
+
++ This approach essentially indicates that to have 2 ads you also had to have 1 ad
+
+  - Or to have 3 ads you had to have 2 ads
+  - That is getting to 3 means you also have 2
+  - as such $y_{i3} \le y_{i2}$ and $y_{i2} \le y_{i1}$ for $i = 1, \:2, \:3$ 
+  - but recall these have to be rearranged $y_{i3} - y_{i2} \le 0$ and $y_{i2} - y_{i1} \le 0$
+
++ The objective fucntion is the same as the MUTUALLY EXCLUSIVE formation of the problem
+
+$Max \; \pi = y_{11} + 3y_{12} + 3y_{13} + 2y_{22} + 3y_{23} - y_{31} + 2y_{32} + 4y_{33}$
+
++ However, when we code the problem we have to pay attention to the additive nature of the problem
+
+  - set up coded objective function to show additional profit rather than total
+
+Coding the Mutually Exclusive formulation
+=============================================
+
+```{r results = "hide"}
+# This model has 9 choice variables that are binary
+ex2_2 <- make.lp(0, 9)
+lp.control(ex2_2, sense = "max")
+
+```
+
+```{r}
+# Add obj fn coeff
+obj_fn <- c(1, 2, 0, 0, 2, 1, -1, 3, 2)
+set.objfn(ex2_2, obj_fn)
+
+# Constraints are based on y3 being on contingent on y2 which is contingent on y1
+# i.e. y3 <= y2 <= y1 where yj is binary
+# Variable numbers       1  2  3  4  5  6  7  8  9
+add.constraint(ex2_2, c(-1, 1, 0, 0, 0, 0, 0, 0, 0), "<=", 0)
+add.constraint(ex2_2, c( 0,-1, 1, 0, 0, 0, 0, 0, 0), "<=", 0)
+add.constraint(ex2_2, c( 0, 0, 0,-1, 1, 0, 0, 0, 0), "<=", 0)
+add.constraint(ex2_2, c( 0, 0, 0, 0,-1, 1, 0, 0, 0), "<=", 0)
+add.constraint(ex2_2, c( 0, 0, 0, 0, 0, 0,-1, 1, 0), "<=", 0)
+add.constraint(ex2_2, c( 0, 0, 0, 0, 0, 0, 0,-1, 1), "<=", 0)
+# Constraint only select 3 crews
+add.constraint(ex2_2, c(1, 1, 1, 1, 1, 1, 1, 1, 1), "=", 5)
+
+# Set the type (real, integer or binary) of each decision variable
+# This may or maynot impact the solution, DOES impact solution in this problem
+set.type(ex2_2, 1, "binary")
+set.type(ex2_2, 2, "binary")
+set.type(ex2_2, 3, "binary")
+set.type(ex2_2, 4, "binary")
+set.type(ex2_2, 5, "binary")
+set.type(ex2_2, 6, "binary")
+set.type(ex2_2, 7, "binary")
+set.type(ex2_2, 8, "binary")
+set.type(ex2_2, 9, "binary")
+
+# review model
+ex2_2
+
+```
+
+
+Solving the model
+=============================================
+
+```{r echo = FALSE, include = FALSE}
+# Solve the model, if this return 0 an optimal solution is found
+solve(ex2_2)
+
+```
+
++ The contingent formation gives $\pi$ = `r get.objective(ex2_2)`
+
+  - Which is the same as MUTUALLY EXCLUSIVE set up in the earlier formation
+
++ How many ads did each product get??
+
+  - variables are `r get.variables(ex2_2)` 
+    - $y_{11}$ = 1, $y_{12}$ = 1, $y_{13}$ = 0, so $x_1$ gets 2 ads 
+    - $y_{21}$ = 0  so $x_2$ gets 0 ads 
+    - $y_{31}$ = 1, $y_{32}$ = 1, $y_{33}$ = 3, so $x_1$ gets 3 ads 
+
++ Constraint values: `r get.constraints(ex2_2)`
+
+  - First 0 indicates $x_1$ gets at least 2 ads
+    - -1 and second 0 indicate $x_1$ does not get 3 ads
+  - Next two 0s indicate $x_2$ either gets 0 or 3 ads 
+  - Next two 0s indicate $x_3$ either gets 0 or 3 ads 
+  - there are a total of 5 ads
+
+
+Southwest Ariline crew scheduling, Ch 12 example 3 
+=============================================
+
++ Set covering problem: have a set of activities with characteristics
+
+  - find a sequence of activities (flight legs) such all characteristics (flights) are covered
+  - in this problem we are trying to schedule crews to cover all flights
+
++ Examinging Table 12.4 on page 495 shows how complicated this can be
+
+  - each column is a potential flight sequence to cover flights
+  - each row is a flight that must be covered
+  - each flight needs as least one crew
+    - for example $x_1 + x_4 + x_7 + x_{10} \ge 1$ for flight 1
+    - can have multiple crews but is more expensive
+  - cost is given in last row of table which gives cost minmization objective function
+    - $Min \; Z = 2x_1 + 3x_2 + 4x_3 + 6x_4 + 7x_5 + 5x_6 + 7x_7 + 8x_8 + 9x_9 + 9x_{10} + 8x_{11} + 9x_{12}$ 
+
+```{r results = "hide"}
+# This model has 12 choice variables that are binary, no auxilary binary variables
+ex3 <- make.lp(0, 12)
+lp.control(ex3, sense = "min")
+
+```
+
+
+Coding the set-covering problem with yes-no constraints
+=============================================
+
+
+```{r}
+# Add x coeff
+obj_fn <- c(2, 3, 4, 6, 7, 5, 7, 8, 9, 9, 8, 9)
+set.objfn(ex3, obj_fn)
+
+# Constraints are based on table for each flight
+# Variable numbers    1  2  3  4  5  6  7  8  9  10 11 12
+add.constraint(ex3, c(1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0), ">=", 1)
+add.constraint(ex3, c(0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0), ">=", 1)
+add.constraint(ex3, c(0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1), ">=", 1)
+add.constraint(ex3, c(0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0), ">=", 1)
+add.constraint(ex3, c(1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0), ">=", 1)
+add.constraint(ex3, c(0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0), ">=", 1)
+add.constraint(ex3, c(0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1), ">=", 1)
+add.constraint(ex3, c(0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0), ">=", 1)
+add.constraint(ex3, c(0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0), ">=", 1)
+add.constraint(ex3, c(0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1), ">=", 1)
+add.constraint(ex3, c(0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1), ">=", 1)
+# Constraint only select 3 crews
+add.constraint(ex3, c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), "=", 3)
+
+# Set the type (real, integer or binary) of each decision variable
+# This may or maynot impact the solution (no impact in this problem)
+set.type(ex3, 1, "binary")
+set.type(ex3, 2, "binary")
+set.type(ex3, 3, "binary")
+set.type(ex3, 4, "binary")
+set.type(ex3, 5, "binary")
+set.type(ex3, 6, "binary")
+set.type(ex3, 7, "binary")
+set.type(ex3, 8, "binary")
+set.type(ex3, 9, "binary")
+set.type(ex3, 10, "binary")
+set.type(ex3, 11, "binary")
+set.type(ex3, 12, "binary")
+
+# Review the model
+ex3
+```
+
+Solving the model
+=============================================
+
+```{r echo = FALSE, include = FALSE}
+# Solve the model, if this return 0 an optimal solution is found
+solve(ex3)
+
+```
+
++ The cost minimization is $cost$ = `r get.objective(ex3)`
+
++ Which flight sequences are selected??
+
+  - the variables are `r get.variables(ex3)` 
+    - $x_3$ = 1, $x_{4}$ = 1, and $x_{11}$ = 1  
+
++ How many crews are on each flight?
+
+  - check the constraint values: `r get.constraints(ex3)`
+  - see all flights have one crew
+  - there are exactly 3 sequences of the 12 selected
+    
+
+
+
+

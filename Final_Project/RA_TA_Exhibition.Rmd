@@ -1,0 +1,446 @@
+---
+title: "Technical Appendix - Exhibition"
+author: "Renato Albolea"
+date: "6/3/2020"
+output: 
+  html_document: 
+    keep_md: yes
+    toc: yes
+    toc_float: true
+    toc_depth: 4
+    code_download: yes
+---
+```{r setup, echo=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+# if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+library(tidyverse)
+library(magrittr)
+
+library(knitr)
+library(kableExtra)
+library(formattable)
+library(patchwork)
+library(scales)
+library(lpSolveAPI)
+library(here)
+```
+
+
+```{r echo = FALSE}
+# Function to generate the sensitivity table
+sensitivity_table <- function(model){
+  # Make solution/sensitivity analysis table
+  # Get primal solution
+  ps <- get.primal.solution(model)
+  
+  
+  # Get sensitivity analysis
+  obj_sa <- get.sensitivity.obj(model)
+  rhs_sa <- get.sensitivity.rhs(model)
+  
+  n <- length(get.variables(model))
+  m <- length(get.constr.type(model))
+  ov <- paste0("Objective Value = ", comma(ps[1], accuracy = 0.01))
+  
+  sa_tab <- rbind(round(ps[2:(n + m + 1)], 2), 
+                  c(round(rhs_sa$duals[1:m], 2), obj_fn),
+                  round(c(rhs_sa$dualsfrom[1:m],obj_sa$objfrom), 2),
+                  round(c(rhs_sa$dualstill[1:m],obj_sa$objtill), 2)) 
+  colnames(sa_tab) <- c(rownames(model), colnames(model))
+  rownames(sa_tab) <- c("solution", "duals/coef", "Sens From", "Sens Till")      
+  
+  # Substitute "inf" and "-inf" so tables are easier to read (coded by two classmates!)
+  sa_tab <- ifelse(sa_tab <= -1.000e+30, "-inf", sa_tab)
+  sa_tab <- ifelse(sa_tab >= 1.000e+30, "inf", sa_tab)
+  
+  # Print the table
+  kable(sa_tab, format.args = list(big.mark = ",")) %>%
+    kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+    add_footnote(label = ov, notation = "none")
+}
+  
+```
+
+```{r echo = FALSE}
+# Function to generate the sensitivity table
+result_table <- function(model){
+  # Make solution/sensitivity analysis table
+  # Get primal solution
+  ps <- get.primal.solution(model)
+  
+  n <- length(get.variables(model))
+  m <- length(get.constr.type(model))
+  ov <- paste0("Objective Value = ", comma(ps[1], accuracy = 0.01))
+
+  sa_tab <- rbind(round(ps[2:(n + m + 1)], 2))
+  colnames(sa_tab) <- c(rownames(model), colnames(model))
+  rownames(sa_tab) <- c("solution")
+  
+  # Substitute "inf" and "-inf" so tables are easier to read (coded by two classmates!)
+  sa_tab <- ifelse(sa_tab <= -1.000e+30, "-inf", sa_tab)
+  sa_tab <- ifelse(sa_tab >= 1.000e+30, "inf", sa_tab)
+  
+  # Print the table
+  kable(sa_tab, format.args = list(big.mark = ",")) %>%
+    kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+    add_footnote(label = ov, notation = "none")
+}
+  
+```
+
+# Objective:  
+
+The Guggenheim Museum is interested in curating a new exhibit. This technical appendix brings support for 3 main proposal of which pieces should be displayed and the total cost of each proposal.  
+\  
+
+# General Restrictions:  
+
++ Must include:
+  1. Only one collage  
+  1.  
+     a. At least one wire mesh sculpture displayed if a computer-generated drawing is displayed __and__  
+     b. At least one computer-generated drawing displayed if a wire mesh sculpture is
+displayed  
+  1. At least one photo-realistic painting 
+  1. At least one cubist painting  
+  1. At least one expressionist painting  
+  1. At least one watercolor painting  
+  1. At least one oil painting  
+  1. The number of paintings to be no greater than three times the number of other art forms  
+  1. All Valentino's paintings   
+  1. Both of Hellen's paintings  
+  1. Display as many pieces from David as from Enrique  
+  1. At least one piece from each of them (David and Enrique)  
+  1. Only display one piece from Rick, if any at all.  
+  1. At least one piece from a female artist for every three pieces included from a male artist.  
+  1. Either one or both of the pieces “Aging Earth” and “Wasted Resources.”  
+  1. At least one piece by Stuart  
+  1. At least one of the following pieces: “Beyond,” “Who Has Control,” “Where are we now?” and  “Pioneers.”   
+\  
+\  
++ The museum only has enough space for:  
+  18. Four sculptures  
+  1. Around 20 paintings, collages, and drawings.  
+\  
+\  
+  20. If “Narcissism” is displayed, “Reflection” should also be displayed  
+\  
+\  
+
+```{r}
+general_restrictions <- function(model){
+  # Add constraints in the order presented in the 'General Restrictions'
+  add.constraint(model, c(art_col$Form=="Collage"), "=", 1)
+  add.constraint(model, -c((art_col$Form=="Wire")*(1/sum(art_col$Form=="Wire")))+c(art_col$Form=="Computer"), ">=", 0)
+  add.constraint(model, -c((art_col$Form=="Computer")*(1/sum(art_col$Form=="Computer")))+c(art_col$Form=="Wire"), ">=", 0)
+  add.constraint(model, c(art_col$Form=="Photo"), ">=", 1)
+  add.constraint(model, c(art_col$Form=="Cubist"), ">=", 1)
+  add.constraint(model, c(art_col$Form=="Expressionist"), "=", 1)
+  add.constraint(model, c(art_col$Form=="Watercolor"), ">=", 1)
+  add.constraint(model, c(art_col$Form=="Oil"), ">=", 1)
+  add.constraint(model, c(art_col$Type=="Painting")-3*c(art_col$Type!="Painting"), "<=", 0)
+  add.constraint(model, c(art_col$Artist=="Valentino"), "=", sum(art_col$Artist=="Valentino"))
+  add.constraint(model, c(art_col$Artist=="Helen"), "=", sum(art_col$Artist=="Helen"))
+  add.constraint(model, c(art_col$Artist=="David")-c(art_col$Artist=="Enrique"), "=", 0)
+  add.constraint(model, c(art_col$Artist=="David"), ">=", 1) # I don't need to use Enrique
+  add.constraint(model, c(art_col$Artist=="Rick"), "<=", 1)
+  add.constraint(model, c(art_col$Gender=="M")-3*c(art_col$Gender=="F"), "<=", 0)
+  add.constraint(model, c((art_col$Piece=="Aging Earth" |
+                            art_col$Piece=="Wasted Resources")), ">=", 1)
+  add.constraint(model, c(art_col$Artist=="Stuart"), ">=", 1)
+  add.constraint(model, c((art_col$Piece=="Beyond" |
+                              art_col$Piece=="Who Has Control?" |
+                              art_col$Piece=="Where are we now?" |
+                              art_col$Piece=="Pioneers" )), ">=", 1)
+  add.constraint(model, c(art_col$Type=="Sculpture"), "<=", 4)
+  add.constraint(model, c(art_col$Type!="Sculpture"), "<=", 20)
+  add.constraint(model, c(art_col$Piece=="Narcissism") - c(art_col$Piece=="Reflection"), "<=", 0)
+  
+  constraints_name <- c("1_coll",
+                      "at_l_1_w_if_c_d",
+                      "at_l_1_d_if_c_w",
+                      "at_l_1_pht",
+                      "at_l_1_cub",
+                      "at_l_1_expt",
+                      "at_l_1_wcol",
+                      "at_l_1_oil",
+                      "paint<=3non",
+                      "valentino",
+                      "helen",
+                      "David=Enrique",
+                      "at_l_1_Darcy",
+                      "Rick<=1",
+                      "3Fem=Male",
+                      "AErth_a_o_WR",
+                      "at_l_1_Stuart",
+                      "at_l_1_4_pieces",
+                      "max_4_scul",
+                      "max_20_n_scul",
+                      "Narc_with_Refl")
+  return(constraints_name)
+}
+```
+
+
+# Proposal 1: Limited Budget  
+
++ Objective: Maximize the number of pieces displayed in the exhibit without exceeding the budget($4 million)  
+
+```{r import_data, message=FALSE}
+# Import Art Collection
+art_col <- read_csv(here("Final_Project", "Data", "Data.csv"))
+
+# Include Sex
+
+art_col %<>% 
+  rename(Desc = `Description of Piece`) %>% 
+  mutate(Form = case_when(str_detect(Desc, 'wire mesh') ~ 'Wire',
+                          str_detect(Desc, 'computer') ~ 'Computer',
+                          str_detect(Desc, 'pen-and-ink') ~ 'Ink',
+                          str_detect(Desc, 'sculpture') ~ 'Sculpture',
+                          str_detect(Desc, 'collage') ~ 'Collage',
+                          str_detect(Desc, 'watercolor') ~ 'Watercolor',
+                          str_detect(Desc, 'oil') ~ 'Oil',
+                          str_detect(Desc, 'photo') ~ 'Photo',
+                          str_detect(Desc, 'cubist') ~ 'Cubist',
+                          str_detect(Desc, 'expressionist') ~ 'Expressionist'),
+         Type  = case_when(str_detect(Desc, 'sculpture') ~ 'Sculpture',
+                           str_detect(Desc, 'painting') ~ 'Painting',
+                           str_detect(Desc, 'collage') ~ 'Collage',
+                           str_detect(Desc, 'drawing') ~ 'Drawing'),
+         Name = str_c(Artist,
+                      str_sub(Piece, start = 1L, end = 3L), 
+                      str_sub(Form, start = 1L, end = 3L),
+                      Gender,
+                      str_sub(Type, start = 1L, end = 3L),
+                      sep="_")
+         )
+```
+
+```{r model_prop_1}
+n_var <- nrow(art_col)
+
+# Set up the number of pieces maximization
+prop_1 <- make.lp(0, n_var)
+
+```
+
+
+```{r echo = TRUE, results=FALSE}
+# Run as maximum
+lp.control(prop_1, sense = "max")
+
+```
+
+```{r model_prop_1_cont}
+# Build objective function
+obj_fn <- c(rep(1,n_var))
+
+set.objfn(prop_1, obj_fn)
+
+# Force binary variables on the solution 
+set.type(prop_1, 1:n_var, "binary")
+
+# add general Restrictions
+constraints_name <- general_restrictions(prop_1)
+
+# 
+add.constraint(prop_1, c(art_col$Price), "<=", 4000000)
+
+# # Add row and column names
+constraints_name <- c(constraints_name,
+                      "Max_Budget")
+
+var_interest_name <- c(art_col$Name)
+
+dimnames(prop_1) <- list(constraints_name, var_interest_name)
+
+# Write to see named algebraic formulation
+write.lp(prop_1, "Proposal_1.lp",type = 'lp')
+
+# Solve the model, if this return 0 an optimal solution is found
+solve(prop_1)
+```
+
+
+
+
+```{r}
+result_table(prop_1)
+```
+
+
+With the proposal above we would be able to display  `r get.objective(prop_1)` art pieces. The selected pieces are:
+
+```{r}
+art_col %>% 
+  filter(get.variables(prop_1)==TRUE) %>%  
+  select(!(Form:Name)) %>% 
+  kable(format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+  cat(., file = "../Final_Project/Tables/prop_1.html")
+
+htmltools::includeHTML("../Final_Project/Tables/prop_1.html")
+```
+
+
+
+# Proposal 2: Minimum of 20 Pieces  
+
++ Objective: Minimize the cost of exibit at least 20 pieces with the same General Restrictions.   
+
+
+```{r model_prop_2}
+n_var <- nrow(art_col) # we will use One addtional variable for constraint 2 a/b
+
+# Set up the number of pieces
+prop_2 <- make.lp(0, n_var)
+
+```
+
+```{r echo = TRUE, results=FALSE}
+# Run as minimum
+lp.control(prop_2, sense = "min")
+
+```
+
+
+```{r}
+# Build objective function
+obj_fn <- c(art_col$Price)
+
+set.objfn(prop_2, obj_fn)
+
+# Force binary variables on the solution 
+set.type(prop_2, 1:n_var, "binary")
+
+# add general Restrictions
+constraints_name <- general_restrictions(prop_2)
+
+# 
+add.constraint(prop_2, rep(1,n_var), ">=", 20)
+
+# # Add row and column names
+constraints_name <- c(constraints_name,
+                      "At_l_20_Pieces")
+
+var_interest_name <- c(art_col$Name)
+
+dimnames(prop_2) <- list(constraints_name, var_interest_name)
+
+# Write to see named algebraic formulation
+write.lp(prop_2, "Proposal_2.lp",type = 'lp')
+
+# Solve the model, if this return 0 an optimal solution is found
+solve(prop_2)
+```
+
+```{r}
+result_table(prop_2)
+```
+
+
+With the proposal above we would be able to display  `r sum(get.variables(prop_2))` art pieces at a cost of $`r comma(get.objective(prop_2)/1000000, accuracy=0.01)` million. The selected pieces are:
+
+```{r}
+art_col %>% 
+  filter(get.variables(prop_2)==TRUE) %>%  
+  select(!(Form:Name)) %>% 
+  kable(format.args = list(big.mark = ",")) %>%
+    kable_styling(bootstrap_options = c("striped", "bordered"))%>% 
+  cat(., file = "../Final_Project/Tables/prop_2.html")
+
+htmltools::includeHTML("../Final_Project/Tables/prop_2.html")
+```
+
+
+
+# Proposal 3: Adjusting Pieces Cost  
+
++ Objective: Considering the possible price's adjustments, what is the impact on the cost of Proposal 2?  
+
+```{r}
+# number of simulations
+n <- seq(1:1000)
+
+# Generate random variable with uniform distribution
+set.seed(1234)
+
+# Make the function
+simulation <- function(n_simulation){
+  price_factor <- runif(n_var, 0.8, 1.2)
+  
+  # Define parameters of the lp
+  prop_3 <- make.lp(0, n_var)
+  set.type(prop_3, 1:n_var, "binary")
+  set.objfn(prop_3, c(price_factor*art_col$Price))
+  
+  # add general Restrictions
+  general_restrictions(prop_3)
+  # 
+  add.constraint(prop_3, rep(1,n_var), ">=", 20)
+
+  # Solve model
+  solve(prop_3)
+
+  # Output
+  return(get.objective(prop_3))
+}
+
+res_simu_prop_3 <- (sapply(n, simulation)) # t() to traspose for correct dimmensions
+
+mean_simu <- mean(res_simu_prop_3)/1000000
+sd_simu <- sd(res_simu_prop_3)/1000000
+
+# Make table
+out_prop_3 <- round(
+  rbind(
+    c(mean_simu, (mean_simu*1000000/get.objective(prop_2)-1)*100),
+    c(sd_simu, 0), 
+    c(mean_simu-qnorm(0.975)*sd_simu, ((mean_simu-qnorm(0.975)*sd_simu)*1000000/get.objective(prop_2)-1)*100),
+    c(mean_simu+qnorm(0.975)*sd_simu, ((mean_simu+qnorm(0.975)*sd_simu)*1000000/get.objective(prop_2)-1)*100),
+    c(max(res_simu_prop_3)/1000000, (max(res_simu_prop_3)/get.objective(prop_2)-1)*100),
+    c(min(res_simu_prop_3)/1000000, (min(res_simu_prop_3)/get.objective(prop_2)-1)*100)
+    ), 2)
+rownames(out_prop_3) <- c("mean", "sd", "Conf Interval 2.5%","Conf Interval 97.5%","max", "min")
+colnames(out_prop_3) <- c("Simulated Budget ", "Impact on the original budget(%)")
+
+# Print output
+kable(out_prop_3, caption = "Loop results") %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+
+
+as.data.frame(res_simu_prop_3) %>% 
+  ggplot(aes(x=res_simu_prop_3/1000000)) +
+  geom_histogram(bins = 25, fill = "white", color = "black")+
+  geom_vline(xintercept = mean_simu, color = "red")+
+  geom_vline(xintercept = get.objective(prop_2)/1000000, color = "blue")+
+  geom_vline(xintercept = mean_simu-qnorm(0.975)*sd_simu, color = "darkgreen")+
+  geom_vline(xintercept = mean_simu+qnorm(0.975)*sd_simu, color = "darkgreen")+
+  labs(title = "", x = "Budget Range") + theme_classic()
+```
+
+
+
+## Save Budget Values
+```{r}
+results <- as.data.frame(cbind(get.objective(prop_2)/1000000,
+                               mean_simu-qnorm(0.975)*sd_simu,
+                               mean_simu+qnorm(0.975)*sd_simu,
+                               mean_simu
+                               ))
+colnames(results) <- c("prop_2", 
+                       "prop_3_low_ci",
+                       "prop_3_high_ci",
+                       "prop_3_mean")
+write.csv(results, file = "../Final_Project/Data/results.csv", row.names = FALSE)
+```
+
+
+
+  

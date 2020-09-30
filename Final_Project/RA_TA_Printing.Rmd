@@ -1,0 +1,663 @@
+---
+title: "RA_TA_Printing"
+author: "Renato Albolea"
+date: "6/8/2020"
+output: 
+  html_document: 
+    keep_md: yes
+    toc: yes
+    toc_float: true
+    toc_depth: 4
+    code_download: yes
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+# knitr::opts_chunk$set(echo = TRUE)
+# #knitr::opts_chunk$set(root.dir = '/home/albolea/Git/math_modeling_decision_making/Final_Project')
+# knitr::opts_chunk$set(root.dir = 'C:\\Users\\albol\\Documents\\Git\\math_modeling_decision_making\\Final_Project')
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+# if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+library(tidyverse)
+library(magrittr)
+
+library(knitr)
+library(kableExtra)
+library(formattable)
+library(patchwork)
+library(queueing)
+library(scales)
+library(here)
+```
+
+
+# Objective:  
+
+Improve the printing process to prevent bottlenecks and reduce work in progress(WIP) costs. This technical appendix brings support for 2 proposals of how to improve the process.  
+\  
+
+# General Characteristics:  
+
++ Equipments:  
+  - 10 identical printers;  
+  - average of 1 print per hour;  
+  - exponential distributed work time;
+  
++ Poster sheets arrival to the printer group:   
+  - Randomly;  
+  - 7 sheets per hour;
+  
++ Inspections:
+  - 8 inspections per hour per person;  
+  - arrival: 7 per hour;
+  
++ Cost: 
+  - $ 8.00 per hour for each poster in progress;   
+  - $ 7.00 per hour for running each press;  
+  - $17.00 per hour for junior inspector;  
+
+
+# Status Quo
+
+```{r echo=FALSE, include=FALSE}
+
+queue_model <- function(lambda, mu, s, n, queue_cost, work_cost,use_fixed_cost, service_name){
+  rho <- lambda/(mu*s)
+
+  # Probability of server is idle
+  p0 <- 1 - rho
+  
+  # Build a table of results
+  tab_queue <- as.data.frame(matrix(0, 1, 9))
+  
+  # Using "queueing" package
+  q_mod <- NewInput.MMC(lambda = lambda, 
+                        mu = mu, 
+                        c = s, 
+                        n = n)
+  
+  model <- QueueingModel.i_MMC(q_mod)
+  
+  # Queue cost
+  qc <- model$Lq*queue_cost
+  
+  #WIP Cost
+  # Queue cost
+  wipc <- model$L*queue_cost
+  
+  # Cost of Service
+  if (use_fixed_cost) {
+    sc <- s*work_cost
+  } else{
+    sc <- (model$L-model$Lq)*work_cost
+  }
+    
+  
+  # Total cost
+  tc <- sc + wipc 
+  
+  # Place results as a row in a table
+  tab_queue[1,] <- round(c(model$Inputs$c, model$L, model$Lq, model$W*60, model$Wq*60, qc, wipc, sc, tc), 2) 
+  
+  c_name <- c(paste("#", service_name), "L", "Lq", "W (minutes)", "Wq (minutes)", "Queue Cost", "In-proccess Cost", "Service Cost", "Total Cost")
+  
+  # Add column names
+  colnames(tab_queue) <- c_name
+  
+  # Show results, note that L, Lq, W, Wq remain constant
+  format_table <- tab_queue %>%
+    kable() %>%
+    kable_styling(bootstrap_options = c("striped", "bordered")) %>% 
+    add_footnote(
+      paste0("Probability all", service_name, " are busy is ",
+             round(B_erlang(s, lambda/mu)*100, 1),
+             "%"),
+      notation = "symbol") %>% 
+    add_footnote(
+      paste0("Probability pritings will wait in the queue ", 
+             round(C_erlang(s, lambda/mu)*100, 1),
+             "%"),
+      notation = "symbol")
+  
+  format_table
+  
+  return(list("raw_tab" = tab_queue, "html_tab" = format_table))
+  
+  }
+
+```
+
+
+
+
+## Printers:   
+```{r}
+# Parameters
+p_lam <- 7
+p_mu <-  1
+p_s <- 10
+
+p_rho <- p_lam/(p_mu*p_s)
+
+# Probability of 0 prints
+p_p0 <- 1 - p_rho
+```
+
++ A printer is expected to be busy `r round(p_rho*100,2)`% of times
+
+
+```{r}
+# Set up problem with criteria and 7 poster papers
+n <- 20
+
+p_sqo <- queue_model(lambda = p_lam,
+                     mu = p_mu,
+                     s = p_s,
+                     n = n,
+                     queue_cost = 8,
+                     work_cost = 7,
+                     use_fixed_cost = FALSE,
+                     service_name = "Printers")
+
+p_sqo$html_tab
+```
+
+## Inspection:   
+```{r}
+# Parameters
+i_lam <- 7
+i_mu <-  8
+i_s <- 1
+
+i_rho <- i_lam/(i_mu*i_s)
+
+# Probability of 0 prints
+i_p0 <- 1 - i_rho
+```
+
++ The inspector is expected to be busy `r round(i_rho*100,2)`% of times
+
+
+```{r}
+# Set up problem with criteria and 20 inspections
+n <- 20
+
+i_sqo <- queue_model(lambda = i_lam,
+                     mu = i_mu,
+                     s = i_s,
+                     n = n,
+                     queue_cost = 8,
+                     work_cost = 17,
+                     use_fixed_cost = TRUE,
+                     service_name = "Inspectors")
+
+sqo_total_cost <- i_sqo$raw_tab$`Total Cost` + p_sqo$raw_tab$`Total Cost`
+sqo_queue_cost <- i_sqo$raw_tab$`Queue Cost` + p_sqo$raw_tab$`Queue Cost`
+
+i_sqo$html_tab
+```
+
+## Total cost
+
+```{r}
+std_format <- function(table){
+  table %>%   
+    kable("html", row.names = TRUE, escape = F) %>%
+    kable_styling(bootstrap_options = "striped", full_width = F, position = "left") %>%
+    row_spec(nrow(total), bold = T, color = "white", background = "SteelBlue") %>%
+    row_spec(nrow(total)-2, bold = T, color = "white", background = "FireBrick") %>%
+    column_spec(4, bold = T)
+    
+}
+
+row_names <- c( "# of Servers",
+                    "Average number of posters (WIP)", 
+                    "Average number of posters in queue (WIQ)", 
+                    "Average wait time (WIP) (in Minutes)",
+                    "Average wait time in queue waiting for service (WIQ) (in Minutes)",
+                    "Cost of in-process inventory waiting for service (WIQ) ($ Per Hour)",
+                    "Cost of all in-process inventory (WIP) ($ Per Hour)",
+                    "Cost of servers",
+                    "Total Cost ($ Per Hour)")
+col_names <- c("Printing Press","Inspection Station")
+
+```
+
+
+```{r}
+total <- as.data.frame(cbind(unlist(p_sqo$raw_tab),#using 10 presses and 1 inspector
+                           unlist(i_sqo$raw_tab))) #using 10 presses and 1 inspector
+
+
+rownames(total) <- row_names
+
+colnames(total)<- col_names
+
+total$Total = rowSums(total)
+
+options(knitr.kable.NA = '')
+
+std_format(total)
+```
+
+
+With this scenario we have a average total cost of \$`r round(sqo_total_cost, 2)` and a average in process cost of \$`r round(sqo_queue_cost, 2)`.  
+
+# Proposal 1: Increase printing time.  
+
++ Idea: Flow reduction. Print new posters at a rate of 1.2 per hour.  
++ Impact:  
+  - Inspectors would be able to keep up with the printers output;
+  - Reduction of \$0.50 (from \$7.00 to \$6.50) in the printing power cost.
+  
+
+## Printers:   
+```{r}
+# Parameters
+p_lam_1 <- 7
+p_mu_1 <-  1/1.2
+p_s_1 <- 10
+
+p_rho_1 <- p_lam_1/(p_mu_1*p_s_1)
+
+# Probability of 0 prints
+p_p0_1 <- 1 - p_rho_1
+```
+
++ A printer is expected to be busy `r round(p_rho_1*100,2)`% of times with this proposal.
+
+
+```{r}
+# Set up problem with criteria and 7 poster papers
+n <- 20
+
+
+p_prop1 <- queue_model(lambda = p_lam_1,
+                     mu = p_mu_1,
+                     s = p_s_1,
+                     n = n,
+                     queue_cost = 8,
+                     work_cost = 6.5,
+                     use_fixed_cost = FALSE,
+                     service_name = "Printers")
+
+p_prop1$html_tab
+```
+
+
++ Bellow we can see the original values for comparisson:  
+
+```{r echo = F}
+p_sqo$html_tab
+```
+
+
+## Inspection:   
+```{r}
+# Parameters
+i_lam_1 <- 7
+i_mu_1 <-  8
+i_s_1 <- 1
+
+i_rho_1 <- i_lam_1/(i_mu_1*i_s_1)
+
+# Probability of 0 prints
+i_p0_1 <- 1 - i_rho_1
+```
+
++ The inspector is expected to be busy `r round(i_rho_1*100,2)`% of times with this proposal.
+
+
+```{r}
+# Set up problem with criteria and 20 inspections
+n <- 20
+
+i_prop1 <- queue_model(lambda = i_lam_1,
+                     mu = i_mu_1,
+                     s = i_s_1,
+                     n = n,
+                     queue_cost = 8,
+                     work_cost = 17,
+                     use_fixed_cost = TRUE,
+                     service_name = "Inspectors")
+
+prop1_total_cost <- i_prop1$raw_tab$`Total Cost` + p_prop1$raw_tab$`Total Cost`
+prop1_queue_cost <- i_prop1$raw_tab$`Queue Cost` + p_prop1$raw_tab$`Queue Cost`
+```
+
+
+## Total cost
+
+```{r}
+prop_1 <- as.data.frame(cbind(unlist(p_prop1$raw_tab),
+                              unlist(i_prop1$raw_tab)
+                              ))
+
+rownames(prop_1) <- row_names
+
+colnames(prop_1)<- col_names
+
+prop_1$Total = rowSums(prop_1)
+
+total_1 <- cbind(total, prop_1)
+
+options(knitr.kable.NA = '')
+
+std_format(total_1) %>% 
+  column_spec(7, bold = T) %>% 
+  add_header_above(c(" ", "Status Quo" = 3, "Proposal 1: Decrease printing rate" = 3))%>% 
+  cat(., file = "../Final_Project/Tables/prop_1.html")
+htmltools::includeHTML("../Final_Project/Tables/prop_1.html")
+```
+
+  
+# Proposal 1b: Decrease printing time and number of printers.  
+
++ Idea: Speed up the printing process.  
++ Impact:  
+  - Inspectors would be able to keep up with the printers output;
+  - Increase of \$0.50 (from \$7.00 to \$6.50) in the printing power cost.
+  - Decrease number of printers from 10 to 8
+  
+
+## Printers:   
+```{r}
+# Parameters
+p_lam_1b <- 7
+p_mu_1b <-  1.2
+p_s_1b <- 8
+
+p_rho_1b <- p_lam_1b/(p_mu_1b*p_s_1b)
+
+# Probability of 0 prints
+p_p0_1b <- 1 - p_rho_1b
+```
+
++ A printer is expected to be busy `r round(p_rho_1*100,2)`% of times with this proposal.
+
+
+```{r}
+# Set up problem with criteria and 7 poster papers
+n <- 20
+
+
+p_prop1b <- queue_model(lambda = p_lam_1b,
+                     mu = p_mu_1b,
+                     s = p_s_1b,
+                     n = n,
+                     queue_cost = 8,
+                     work_cost = 7.5,
+                     use_fixed_cost = FALSE,
+                     service_name = "Printers")
+
+p_prop1b$html_tab
+```
+
+
++ Bellow we can see the original values for comparisson:  
+
+```{r echo = F}
+p_sqo$html_tab
+```
+
++ Bellow we can see the original proposal 1 for comparisson:  
+
+```{r echo = F}
+p_prop1$html_tab
+```
+
+
+```{r}
+prop1b_total_cost <- i_prop1$raw_tab$`Total Cost` + p_prop1b$raw_tab$`Total Cost`
+prop1b_queue_cost <- i_prop1$raw_tab$`Queue Cost` + p_prop1b$raw_tab$`Queue Cost`
+```
+
+## Total cost
+
+```{r}
+prop_1b <- as.data.frame(cbind(unlist(p_prop1b$raw_tab),
+                               unlist(i_prop1$raw_tab)
+                               ))
+
+
+rownames(prop_1b) <- row_names
+
+colnames(prop_1b)<- col_names
+
+prop_1b$Total = rowSums(prop_1b)
+
+total_1b <- cbind(total, prop_1b)
+
+options(knitr.kable.NA = '')
+
+std_format(total_1b) %>% 
+  column_spec(7, bold = T) %>% 
+  add_header_above(c(" ", "Status Quo" = 3, "Proposal 1b: Increase printing rate" = 3))%>% 
+  cat(., file = "../Final_Project/Tables/prop_1b.html")
+htmltools::includeHTML("../Final_Project/Tables/prop_1b.html")
+```
+
+With this scenario we have a average total cost of \$`r round(prop1b_total_cost, 2)` and a average in process cost of \$`r round(prop1b_queue_cost, 2)`. 
+
+
+# Proposal 2: Substitute a more experienced inspector for this task.  
+
++ Idea: Increase flow on the inspection. 
++ Impact:  
+  - Increases inspection rate from 8 per hour to 8.57 per hour
+  - Increases compensation in \$2.00 (from \$17.00 to \$19.00).
+
+## Inspection:   
+```{r}
+# Parameters
+i_lam_2 <- 7
+i_mu_2 <-  60/7
+i_s_2 <- 1
+
+i_rho_2 <- i_lam_2/(i_mu_2*i_s_2)
+
+# Probability of 0 prints
+i_p0_2 <- 1 - i_rho_2
+```
+
++ The inspector is expected to be busy `r round(i_rho_2*100,2)`% of times with this proposal.
+
+
+```{r}
+# Set up problem with criteria and 20 inspections
+n <- 20
+
+i_prop2 <- queue_model(lambda = i_lam_2,
+                     mu = i_mu_2,
+                     s = i_s_2,
+                     n = n,
+                     queue_cost = 8,
+                     work_cost = 19,
+                     use_fixed_cost = TRUE,
+                     service_name = "Inspectors")
+
+prop2_total_cost <- i_prop2$raw_tab$`Total Cost` + p_sqo$raw_tab$`Total Cost`
+prop2_queue_cost <- i_prop2$raw_tab$`Queue Cost` + p_sqo$raw_tab$`Queue Cost`
+i_prop2$html_tab
+```
+
++ Bellow we can see the original values for comparisson:  
+
+```{r echo = F}
+i_sqo$html_tab
+```
+
+## Total cost
+
+```{r}
+prop_2 <- as.data.frame(cbind(unlist(p_sqo$raw_tab),
+                           unlist(i_prop2$raw_tab))) 
+
+rownames(prop_2) <- row_names
+
+colnames(prop_2)<- col_names
+
+prop_2$Total = rowSums(prop_2)
+
+total_2 <- cbind(total, prop_2)
+
+options(knitr.kable.NA = '')
+
+std_format(total_2) %>% 
+  column_spec(7, bold = T) %>%  
+  add_header_above(c(" ", "Status Quo" = 3, "Proposal 2: Senior Inspector" = 3))%>% 
+  cat(., file = "../Final_Project/Tables/prop_2.html")
+htmltools::includeHTML("../Final_Project/Tables/prop_2.html")
+```
+
+
+With this scenario we have a average total cost of \$`r round(prop2_total_cost, 2)` and a average in process cost of \$`r round(prop2_queue_cost, 2)`. 
+
+# Proposal 2b: Substitute a more experienced inspector for this task and increase the number of inspectors.  
+
++ Idea: Increase flow on the inspection. 
++ Impact:  
+  - Increases inspection rate from 8 per hour to 8.57 per hour
+  - Increases compensation in \$2.00 (from \$17.00 to \$19.00).
+  - Increase to 2 senior inspectors
+
+## Inspection:   
+```{r}
+# Parameters
+i_lam_2b <- 7
+i_mu_2b <-  60/7
+i_s_2b <- 2
+
+i_rho_2b <- i_lam_2b/(i_mu_2b*i_s_2b)
+
+# Probability of 0 prints
+i_p0_2b <- 1 - i_rho_2b
+```
+
++ The inspectors are expected to be busy `r round(i_rho_2*100,2)`% of times with this proposal.
+
+
+```{r}
+# Set up problem with criteria and 20 inspections
+n <- 20
+
+i_prop2b <- queue_model(lambda = i_lam_2b,
+                     mu = i_mu_2b,
+                     s = i_s_2b,
+                     n = n,
+                     queue_cost = 8,
+                     work_cost = 19,
+                     use_fixed_cost = TRUE,
+                     service_name = "Inspectors")
+i_prop2$html_tab
+```
+## Total cost
+
+```{r}
+prop_2b <- as.data.frame(cbind(unlist(p_sqo$raw_tab),
+                               unlist(i_prop2b$raw_tab)
+                               )) 
+
+rownames(prop_2b) <- row_names
+
+colnames(prop_2b)<- col_names
+
+prop_2b$Total = rowSums(prop_2b)
+
+total_2b <- cbind(total, prop_2b)
+
+options(knitr.kable.NA = '')
+
+std_format(total_2b) %>% 
+  column_spec(7, bold = T) %>% 
+  add_header_above(c(" ", "Status Quo" = 3, "Proposal 2b: 2 Senior Inspectors" = 3))%>% 
+  cat(., file = "../Final_Project/Tables/prop_2b.html")
+htmltools::includeHTML("../Final_Project/Tables/prop_2b.html")
+```
+
+
+
+# Proposal 3: Join proposal 1B and 2B
+
+
+```{r}
+prop_3 <- as.data.frame(cbind(unlist(p_prop1b$raw_tab),
+                              unlist(i_prop2b$raw_tab)
+                              )) 
+
+rownames(prop_3) <- row_names
+
+colnames(prop_3)<- col_names
+
+prop_3$Total = rowSums(prop_3)
+
+total_3 <- cbind(total, prop_3)
+
+options(knitr.kable.NA = '')
+
+std_format(total_3) %>% 
+  column_spec(7, bold = T) %>% 
+  add_header_above(c(" ", "Status Quo" = 3, "Proposal 1b + Proposal 2b" = 3))%>% 
+  cat(., file = "../Final_Project/Tables/prop_3.html")
+htmltools::includeHTML("../Final_Project/Tables/prop_3.html")
+```
+
+
+# Summary
+
+```{r, warning=FALSE}
+
+
+comp <- as.data.frame(cbind(total$Total,
+                            prop_1$Total,
+                            prop_1b$Total,
+                            prop_2$Total,
+                            prop_2b$Total,
+                            prop_3$Total)) # variable to compare all proposals 
+                      
+options(knitr.kable.NA = '')
+
+rownames(comp) <- row_names
+
+colnames(comp)<- c("Status Quo", 
+                     "Prop 1",
+                     "Prop 1b",
+                     "Prop 2",
+                     "Prop 2b",
+                     "Prop 3")
+comp %>%   
+  kable("html", row.names = TRUE, escape = F) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left") %>%
+  row_spec(nrow(total), bold = T, color = "white", background = "SteelBlue") %>%
+  row_spec(nrow(total)-2, bold = T, color = "white", background = "FireBrick") %>%
+  column_spec(1, width = "120em") %>% 
+  column_spec(2, bold = T, width = "15em") %>% 
+  column_spec(3:6, width = "15em") %>%
+  column_spec(7, bold = T, width = "15em") %>% 
+  footnote(general = c("- Proposal 1: Decrease printing rate",
+                       "- Proposal 1b: Increase printing rate",
+                       "- Proposal 2: Senior Inspector",
+                       "- Proposal 2b: 2 Senior Inspectors",
+                       "- Proposal 3: Increase printing rate and 2 Senior Inspectors"
+                       ) ) %>% 
+  cat(., file = "../Final_Project/Tables/compare_prop.html")
+
+htmltools::includeHTML("../Final_Project/Tables/compare_prop.html")
+
+```
+
+
+## Save Results
+
+```{r}
+write.csv(total, file = "../Final_Project/Data/print_squo.csv", row.names = TRUE)
+write.csv(prop_1, file = "../Final_Project/Data/print_prop_1.csv", row.names = TRUE)
+write.csv(prop_1b, file = "../Final_Project/Data/print_prop_1b.csv", row.names = TRUE)
+write.csv(prop_2, file = "../Final_Project/Data/print_prop_2.csv", row.names = TRUE)
+write.csv(prop_2b, file = "../Final_Project/Data/print_prop_2b.csv", row.names = TRUE)
+write.csv(prop_3, file = "../Final_Project/Data/print_prop_3.csv", row.names = TRUE)
+```
+

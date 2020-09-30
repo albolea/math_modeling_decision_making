@@ -1,0 +1,10 @@
+"","Printing Press","Inspection Station","Total"
+"# of Servers",8,2,10
+"Average number of posters (WIP)",6.69,0.98,7.67
+"Average number of posters in queue (WIQ)",0.86,0.16,1.02
+"Average wait time (WIP) (in Minutes)",57.37,8.4,65.77
+"Average wait time in queue waiting for service (WIQ) (in Minutes)",7.37,1.4,8.77
+"Cost of in-process inventory waiting for service (WIQ) ($ Per Hour)",6.88,1.31,8.19
+"Cost of all in-process inventory (WIP) ($ Per Hour)",53.54,7.84,61.38
+"Cost of servers",43.75,38,81.75
+"Total Cost ($ Per Hour)",97.29,45.84,143.13

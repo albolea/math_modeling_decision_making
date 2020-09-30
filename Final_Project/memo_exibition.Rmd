@@ -1,0 +1,41 @@
+---
+output: html_document
+---
+#### **To: Museum Board of Directors**  
+  
+#### **From: Renato Albolea**  
+  
+#### **Date: 06/12/2020**   
+  
+#### **RE: Celeste's new exhibition**
+
+```{r echo=FALSE, include=FALSE, warning=FALSE}
+results <- readr::read_csv("../Final_Project/Data/results.csv")
+```
+
+
+The humankind has an inner desire to communicate with others throughout art. In its primitive form, art was used to communicate simple events and to explain hunting tactics (Rock art). Later painters decided to push forward their technics with the desire to active photo-quality paintings. With the advent of the cubist movement, painters started to pursue the communication of felling above the realism of the painting. With modern art, causing an impact on the viewer was always the ultimate goal of the artist. No matter the style one thing is always true: Humans will be drawn to see and admire all aspects of art.  
+
+Celeste approaches me with the new challenge of choosing which art pieces we should display in this new exhibition in a way that we maintain a budget in mind, while also conciliating her desires for the exhibition and Valentino's point of view.  
+
+In our __first proposal__, we seek to find the largest number of art pieces that could be displayed considering the $4 million budget. In the table below, I present the pieces that should be displayed to maximize the number of pieces in the exhibition:  
+
+```{r, echo=FALSE}
+htmltools::includeHTML("../Final_Project/Tables/prop_1.html")
+```
+
+
+In our __second proposal__, we bring the minimal budget necessary to make an exhibition with at least 20 pieces (Celeste believes that this minimal number is necessary to draw the public attention to the exhibition). Under these circumstances we would need a budget of \$`r results$prop_2` million and the pieces to be displayed would be:  
+
+```{r, echo=FALSE}
+htmltools::includeHTML("../Final_Project/Tables/prop_2.html")
+```
+
+Our __third and last proposal__ goes in line with the latter proposal, but we decided to simulate different prices ( from 20% decrease to up to 20% increase) for each art piece to accommodate our expectations for any price fluctuation. Under this scenario, the safe budget for use to consider is \$`r round(results$prop_3_mean, 2)` million, however we estimate that the necessary budget may be oscillate between \$`r round(results$prop_3_low_ci, 2)` million to \$`r round(results$prop_3_high_ci, 2)` million.  
+
+
+Please do not hesitate to contact me if you have questions or would like to discuss the analysis further. It is best to reach me at albolear@seattleu.edu.
+
+Best regards,
+
+Renato Albolea

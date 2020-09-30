@@ -1,0 +1,78 @@
+---
+output: html_document
+---
+#### **To: Seymore**  
+  
+#### **From: Renato Albolea**  
+  
+#### **Date: 06/12/2020**   
+  
+#### **RE: Proposals to diminish WIP Costs **
+
+
+```{r echo=FALSE, include=FALSE, warning=FALSE}
+squo <- readr::read_csv("../Final_Project/Data/print_squo.csv")
+names(squo) <- janitor::make_clean_names(names(squo))
+
+prop_1 <- readr::read_csv("../Final_Project/Data/print_prop_1.csv")
+names(prop_1) <- janitor::make_clean_names(names(prop_1))
+
+prop_1b <- readr::read_csv("../Final_Project/Data/print_prop_1b.csv")
+names(prop_1b) <- janitor::make_clean_names(names(prop_1b))
+
+prop_2 <- readr::read_csv("../Final_Project/Data/print_prop_2.csv")
+names(prop_2) <- janitor::make_clean_names(names(prop_2))
+
+prop_2b <- readr::read_csv("../Final_Project/Data/print_prop_2b.csv")
+names(prop_2b) <- janitor::make_clean_names(names(prop_2b))
+
+prop_3 <- readr::read_csv("../Final_Project/Data/print_prop_3.csv")
+names(prop_3) <- janitor::make_clean_names(names(prop_3))
+```
+
+One of the most crucial aspects of the manufacturing business is finding the optimal speed to run the production line. Since each machine will have a different production rate, finding the right tuning for the whole system is some times very challenging. My objective in this memo is to present some proposals to diminish the work in progress (WIP) stock on the printing of the high-quality images to the Guggenheim's new exhibition envisioned by Celeste.  In my analysis, the best alternative to diminish our WIP, from the 2 alternatives that we discussed, is to change our junior inspector to a senior inspector. In this short memo, I will highlight the most important aspects of the 2 proposals we discussed and will also show you two additional variations of those proposals.  
+
+__The first proposal__ that we discussed was to diminish the speed of the printers so that the junior inspector could keep up with the production.  The table below shows the impact of this proposal on our costs. As you can see, this proposal would increase our WIP cost of `r round((prop_1$total[7]/squo$total[7]-1)*100, 2)`% and an increase of our total cost of `r round((prop_1$total[9]/squo$total[9]-1)*100, 2)`% This increase would happen because, on average, we would have `r round(prop_1$printing_press[2], 1)` prints on our production line per hour, of which `r round(prop_1$printing_press[3], 1)` prints would be waiting to be printed on average `r round(prop_1$printing_press[5], 1)` minutes. This proposal would end up not having any impact on the inspector job.  
+
+```{r echo=FALSE}
+htmltools::includeHTML("../Final_Project/Tables/prop_1.html")
+```
+
+I tried also __a variation of the first proposal__ where I diminished the number of printer to 8 and increased the speed of our printers. In this new scenario, we would have a decrease in our WIP cost of `r round((prop_1b$total[7]/squo$total[7]-1)*100, 2)`% and a decrease in our total cost of `r round((prop_1b$total[9]/squo$total[9]-1)*100, 2)`%. This impact would happen because, on average, we would have only `r round(prop_1b$printing_press[2], 1)` prints on our production line, of which `r round(prop_1b$printing_press[3], 1)` prints would be waiting to be printed on average `r round(prop_1b$printing_press[5], 1)` minutes. This proposal would end up not having any impact on the inspector job.  
+
+```{r echo=FALSE}
+htmltools::includeHTML("../Final_Project/Tables/prop_1b.html")
+```
+
+__The second proposal__ we discussed involved substituting our junior inspector by a senior inspector. The table below shows the impact of this proposal on our costs. In this new scenario, we would have a decrease in our WIP cost of `r round((prop_2$total[7]/squo$total[7]-1)*100, 2)`% and a decrease in our total cost of `r round((prop_2$total[9]/squo$total[9]-1)*100, 2)`%. This impact would happen because, on average, the prints would wait `r round(prop_2$inspection_station[5], 1)` minutes to be analyzed, and, on average only  `r round(prop_2$inspection_station[3], 1)` would be waiting for inspection.  
+
+```{r echo=FALSE}
+htmltools::includeHTML("../Final_Project/Tables/prop_2.html")
+```
+
+I also tried __a variation of the former proposal__ where I substitute the junior inspector by 2 senior inspectors. The table below shows the impact of this proposal on our costs. In this new scenario, we would have a decrease in our WIP cost of `r round((prop_2b$total[7]/squo$total[7]-1)*100, 2)`% and a decrease in our total cost of `r round((prop_2b$total[9]/squo$total[9]-1)*100, 2)`%. This impact would happen because, on average, the prints would wait `r round(prop_2b$inspection_station[5], 1)` minutes to be analyzed, and, on average only  `r round(prop_2b$inspection_station[3], 1)` would be waiting for inspection.  
+
+
+```{r echo=FALSE}
+htmltools::includeHTML("../Final_Project/Tables/prop_2b.html")
+```
+
+Finally, I wanted to show you the __last proposal__ in which I combined the variation of the first proposal and the variation of the second proposal. In this new scenario, we would have a decrease in our WIP cost of `r round((prop_3$total[7]/squo$total[7]-1)*100, 2)`% and a decrease in our total cost of `r round((prop_3$total[9]/squo$total[9]-1)*100, 2)`%. as you can see in the table below.
+
+```{r echo=FALSE}
+htmltools::includeHTML("../Final_Project/Tables/prop_3.html")
+```
+
+A comparison of all proposals can be seen below.  
+
+```{r echo=FALSE}
+htmltools::includeHTML("../Final_Project/Tables/compare_prop.html")
+```
+
+__In conclusion__, from the two proposals we discussed, the best course of action would be to __substitute the junior inspector by a senior inspector__, which would __reduce our total cost from `r round(squo$total[9], 2)` to `r round(prop_2$total[9], 2)` per hour__. I recommend you __also consider my last proposal__ of increasing the printer speed, decrease the number of printers to 8, and change the junior inspector by two senior inspectors since __our final cost would be reduced to `r round(prop_3$total[9], 2)` per hour__.  
+
+Please do not hesitate to contact me if you have questions or would like to discuss the analysis further. It is best to reach me at albolear@seattleu.edu.   
+
+Best regards,  
+
+Renato Albolea

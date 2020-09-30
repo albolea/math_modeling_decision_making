@@ -1,35 +1,35 @@
-Artist,Piece,Description of Piece,Price
-Nicholas,Perfection,A wire mesh sculpture of the human body,300000
-Nicholas,Burden,A wire mesh sculpture of a mule,250000
-Nicholas,Emergence,A wire mesh sculpture of a man,125000
-Rita,Beyond,A series of computer-generated drawings,400000
-Rita,Who Has Control?,A computer-generated drawing intermeshed with lines of computer code,500000
-Rita,Domestication,A pen-and-ink drawing of a house,400000
-Rita,Innocence,A pen-and-ink drawing of a child,550000
-Norm,Aging Earth,A sculpture of trash covering a larger globe,700000
-Norm,Wasted Resources,A collage of various packaging materials,575000
-Hector,Serenity,A painting with an all blue watercolor background and a black watercolor center,125000
-Hector,Calm Before the Storm,An all blue watercolor painting,300000
-Robert,Void,An all black oil painting,150000
-Robert,Sun,An all yellow oil painting,150000
-Emma,Storefront Window,A photo-realistic painting of a jewelry store display window,850000
-Emma,Harley,A photo-realistic painting of a Harley-Davidson motorcycle,750000
-Angie,Consumerism,A collage of magazine advertisements,400000
-Angie,Reflection,A mirror (considered a sculpture),175000
-Angie,Trojan Victory,A wooden sculpture of a horse,450000
-Darcy,Ziggy,A photo-realistic self-portrait (painting),500000
-Darcy,Ziggy II,A cubist self-portrait (painting),500000
-Darcy,Ziggy III,An expressionist self-portrait (painting),500000
-Bill,Where are we now?,A science fiction oil painting depicting Mars colonization,650000
-Bill,Pioneers,An oil painting of three astronauts aboard the space shuttle,650000
-Stuart,Wisdom,A pen-and-ink drawing of an Apache chieftain,250000
-Stuart,Superior Powers,A pen-and-ink drawing of a traditional Native American rain dance,350000
-Stuart,Living Land,An oil painting of the Grand Canyon,450000
-Candy,Study of a Violin,A cubist painting of a violin,400000
-Candy,Study of a Fruit Bowl,A cubist painting of a bowl of fruit,400000
-Rick,My Namesake,A collage of Rick cartoons,300000
-Rick,Narcissism,A collage of photographs of Rick,300000
-Valentina,All That Glitters,A watercolor painting of the Golden Gate Bridge,50000
-Valentina,The Rock,A watercolor painting of Alcatraz,50000
-Valentina,Winding Road,A watercolor painting of Lombard Street,50000
-Valentina,1071 Fifth Ave,A watercolor painting of  The Guggenheim,50000
+Artist,Piece,Description of Piece,Gender,Price,Painting,Medium/Style
+Nicholas,Perfection,A wire mesh sculpture of the human body,M,300000,N,Wire Mesh
+Nicholas,Burden,A wire mesh sculpture of a mule,M,250000,N,Wire Mesh
+Nicholas,Emergence,A wire mesh sculpture of a man,M,125000,N,Wire Mesh
+Rita,Beyond,A series of computer-generated drawings,F,400000,N,Computer-generated
+Rita,Who Has Control?,A computer-generated drawing intermeshed with lines of computer code,F,500000,N,Computer-generated
+Rita,Domestication,A pen-and-ink drawing of a house,F,400000,N,Drawing
+Rita,Innocence,A pen-and-ink drawing of a child,F,550000,N,Drawing
+Norm,Aging Earth,A sculpture of trash covering a larger globe,M,700000,N,Sculpture
+Norm,Wasted Resources,A collage of various packaging materials,M,575000,N,Collage
+Helen,Serenity,A painting with an all blue watercolor background and a black watercolor center,F,125000,Y,Watercolor
+Helen,Calm Before the Storm,An all blue watercolor painting,F,300000,Y,Watercolor
+Robert,Void,An all black oil painting,M,150000,Y,Oil
+Robert,Sun,An all yellow oil painting,M,150000,Y,Oil
+Enrique,Storefront Window,A photo-realistic painting of a jewelry store display window,M,850000,Y,Photo-Realist
+Enrique,Harley,A photo-realistic painting of a Harley-Davidson motorcycle,M,750000,Y,Photo-Realist
+Angie,Consumerism,A collage of magazine advertisements,F,400000,N,Collage
+Angie,Reflection,A mirror (considered a sculpture),F,175000,N,Sculpture
+Angie,Trojan Victory,A wooden sculpture of a horse,F,450000,N,Sculpture
+David,Ziggy,A photo-realistic self-portrait (painting),M,500000,Y,Photo-Realist
+David,Ziggy II,A cubist self-portrait (painting),M,500000,Y,Cubist
+David,Ziggy III,An expressionist self-portrait (painting),M,500000,Y,expressionist
+Bill,Where are we now?,A science fiction oil painting depicting Mars colonization,M,650000,Y,Oil
+Bill,Pioneers,An oil painting of three astronauts aboard the space shuttle,M,650000,Y,Oil
+Stuart,Wisdom,A pen-and-ink drawing of an Apache chieftain,M,250000,N,Drawing
+Stuart,Superior Powers,A pen-and-ink drawing of a traditional Native American rain dance,M,350000,N,Drawing
+Stuart,Living Land,An oil painting of the Grand Canyon,M,450000,Y,Oil
+Candy,Study of a Violin,A cubist painting of a violin,F,400000,Y,Cubist
+Candy,Study of a Fruit Bowl,A cubist painting of a bowl of fruit,F,400000,Y,Cubist
+Rick,My Namesake,A collage of Rick cartoons,M,300000,N,Collage
+Rick,Narcissism,A collage of photographs of Rick,M,300000,N,Collage
+Valentino,All That Glitters,A watercolor painting of the Golden Gate Bridge,M,50000,Y,Watercolor
+Valentino,The Rock,A watercolor painting of Alcatraz,M,50000,Y,Watercolor
+Valentino,Winding Road,A watercolor painting of Lombard Street,M,50000,Y,Watercolor
+Valentino,1071 Fifth Ave,A watercolor painting of  The Guggenheim,M,50000,Y,Watercolor

@@ -1,0 +1,95 @@
+---
+title: "Final Project"
+subtitle: "Final Project"
+author: "Sakshi Madan"
+output: slidy_presentation
+---
+
+```{r echo = FALSE}
+# Course: 5260 Math models for decision making
+# Title: Final Project
+# Purpose: Final Projects
+# Date: March 15, 2020
+# Author: Sakshi Madan
+
+```
+
+```{r echo = FALSE}
+# Clear environment of variables and functions
+
+
+```
+
+```{r echo = FALSE, message = FALSE}
+# Load packages
+library(lpSolveAPI)
+`%>%` <- magrittr::`%>%`
+library(knitr)
+library(kableExtra)
+library(tidyverse)
+library(here)
+```
+
+```{r}
+# Import data
+project = read.csv(here("Final_Project", "Data", "Data.csv"))
+
+
+```
+
+
+# Proposal 1  
+
++ **Goal: To maximize the number of pieces displayed without exceeding the budget**    
++ The decision variables are whether to include a painting or not in the exhibit, so there will be `r nrow(project)` number of binary decision variables    
++ Problem setup  
+
+```{r results = "hide"}
+# hide this section to avoid long output page in slides
+prop1_bip <- make.lp(0, 34)
+lp.control(prop1_bip, sense = "max")
+```
+
+```{r}
+obj_fn <- c(rep(1,34))
+set.objfn(prop1_bip, obj_fn)
+
+set.type(prop1_bip, 1:34, "binary")
+
+# Constraint on variable values, standard constraint
+add.constraint(prop1_bip, c(project$Price), "<=", 4000000)
+add.constraint(prop1_bip, c(rep(0,8),1,rep(0,6),1,rep(0,12),1,1,rep(0,4)), "=", 1) # collage
+add.constraint(prop1_bip, c(1,1,1,-0.5,-0.5,rep(0,29)), ">=", 0) #comp --> atleast 1 wire
+add.constraint(prop1_bip, c(-1/3,-1/3,-1/3,1,1,rep(0,29)), ">=", 0) #wire --> atleast 1 comp
+add.constraint(prop1_bip, c(rep(0,13),1,1,rep(0,3),1,rep(0,15)), ">=", 1) #photo-realistic
+add.constraint(prop1_bip, c(rep(0,19),1,rep(0,6),1,1,rep(0,6)), ">=", 1) #cubist
+add.constraint(prop1_bip, c(rep(0,20),1,rep(0,13)), "=", 1) #expressionist
+add.constraint(prop1_bip, c(rep(0,9),1,1,rep(0,19),1,1,1,1), ">=", 1) #watercolor
+add.constraint(prop1_bip, c(rep(0,11),1,1,rep(0,8),1,1,rep(0,2),1,rep(0,8)), ">=", 1) #oil
+add.constraint(prop1_bip, c(rep(-2,9),rep(1,6),rep(-2,3),rep(1,5),rep(-2,2),rep(1,3),rep(-2,2),rep(1,4)), "<=", 0) #paintings<=2(others)
+add.constraint(prop1_bip, c(rep(0,30),1,1,1,1), "=", 4) #valentino's all
+add.constraint(prop1_bip, c(rep(0,9),1,1,rep(0,23)), "=", 2) #helen's all
+add.constraint(prop1_bip, c(rep(0,18),1,1,1,rep(0,13)), ">=", 1) #david's atleast 1
+add.constraint(prop1_bip, c(rep(0,13),1,1,rep(0,19)), ">=", 1) #enrique's atleast 1
+add.constraint(prop1_bip, c(rep(0,13),-1,-1,rep(0,3),1,1,1,rep(0,13)), "=", 0) #david's = enrique's
+add.constraint(prop1_bip, c(rep(0,28),1,1,rep(0,4)), "<=", 1) #rick's atmost 1
+add.constraint(prop1_bip, c(rep(1,3),rep(-2,4),rep(1,2),rep(-2,2),rep(1,4),rep(-2,3),rep(1,8),rep(-2,2),rep(1,6)), "<=", 0) #male<=2(female)
+add.constraint(prop1_bip, c(rep(0,7),1,1,rep(0,25)), ">=", 1) #atleast 1 of ageing earth and wasted resources
+add.constraint(prop1_bip, c(rep(0,23),1,1,1,rep(0,8)), ">=", 1) #atleast 1 of stuart
+add.constraint(prop1_bip, c(rep(0,3),1,1,rep(0,16),1,1,rep(0,11)), ">=", 1) #atleast 1 of beyond,who has control, where are we now, pioneers
+add.constraint(prop1_bip, c(1,1,1,rep(0,4),1,rep(0,8),1,1,rep(0,16)), "<=", 4) #max 4 sculptures
+add.constraint(prop1_bip, c(0,0,0,rep(1,4),0,rep(1,8),0,0,rep(1,16)), "<=", 20) #max 20 paintings, drawings and  collages
+add.constraint(prop1_bip, c(rep(0,16),1,rep(0,12),-1,rep(0,4)), ">=", 0) #if narcissism then reflection should be there
+
+# review model
+prop1_bip
+
+write.lp(prop1_bip, "Proposal_1_saksh.lp",type = 'lp')
+
+solve(prop1_bip)
+
+get.objective(prop1_bip)
+get.variables(prop1_bip)
+get.constraints(prop1_bip)
+
+```
